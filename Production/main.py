@@ -1,0 +1,462 @@
+import functions_framework
+import firebase_admin
+from firebase_admin import firestore
+from google.cloud import secretmanager
+from google.cloud import storage
+import json
+import logging
+import openai
+import pandas as pd
+import faiss
+import numpy as np
+from datetime import datetime, timezone
+from google.cloud import translate
+import uuid
+import requests
+from io import BytesIO
+
+logging.basicConfig(level=logging.INFO)
+
+# Initialise Firebase if not already
+if not firebase_admin._apps:
+    firebase_admin.initialize_app()
+db_olivia = firestore.client(database_id='olivia')
+
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, x-firebase-appcheck"
+}
+ 
+
+def access_secret(secret_id):
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/1052202528756/secrets/{secret_id}/versions/latest"
+    response = client.access_secret_version(request={"name": name})
+    return response.payload.data.decode("UTF-8")
+
+
+dialog360_key = access_secret("360DIALOG_API_KEY")
+
+# Download data from storage
+data_string = storage.Client().bucket("customer-service-info").blob("olivia_information_vectors.json").download_as_string()
+data = json.loads(data_string)
+
+
+# ASSIGN ALL RELEVANT VALUES HERE
+models = data["models"]
+
+assistant_model = models["assistant_model"]
+moderation_model = models["moderation_model"]
+transcription_model = models["transcription_model"]
+summary_query_model = models["summary_query_model"]
+embedding_model = models['embedding_model']
+
+
+# AND HERE
+hyperparams = data["hyperparams"]
+
+p_audio = hyperparams["p_audio"]
+p_langdetect = hyperparams["p_langdetect"]
+restart_summary_every = hyperparams["restart_summary_every"]
+
+# AND HERE
+prompts = data["prompts"]
+
+summary_rewrite_template = prompts["summary_rewrite_template"]
+query_rewrite__system_prompt = prompts["query_rewrite__system_prompt"]
+query_rewrite_user_template = prompts["query_rewrite_user_template"]
+
+
+
+info_df = pd.DataFrame(data["information"])
+human_escalation_df = pd.DataFrame(data["human_escalation"])
+
+
+
+
+
+
+
+# assign all the preset responses from our downloaded data
+supported_languages = data["supported_languages"]
+phone_to_language = data["phone_to_language"]
+greeting_responses = data["greeting_responses"]
+not_understood_responses = data["not_understood_responses"]
+flagged_content_response = data["flagged_content_response"]
+self_harm_responses = data["self_harm_responses"]
+unsupported_media_responses = data["unsupported_media_responses"]
+hard_escalate_response = data["hard_escalate_response"]
+
+
+
+openai_client = openai.OpenAI(api_key = access_secret("OPENAI_API_KEY"))
+
+translate_client = translate.TranslationServiceClient()
+
+
+
+# Create matrix of information vectors
+info_matrix = np.vstack(info_df['vector_embedding'].values).astype('float32')
+human_escalation_matrix = np.vstack(human_escalation_df['vector_embedding'].values).astype('float32')
+
+
+# Generate FAISS index of information embeddings
+info_dim = info_matrix.shape[1]
+info_index = faiss.IndexFlatIP(info_dim)
+info_index.add(info_matrix)
+
+# Generate FAISS index of human_escalation trigger embeddings
+escalation_dim = info_matrix.shape[1]
+escalation_index = faiss.IndexFlatIP(escalation_dim)
+escalation_index.add(human_escalation_matrix)
+
+
+
+
+# INITIAL PROMPT
+
+fallback_lines = "\n".join(
+    f"- {lang_code}: {not_understood_responses[lang_code]}"
+    for lang_code in supported_languages
+)
+
+
+# Generate initial prompt for the GPT
+initial_prompt = f"""You are a user assistant for Olivia, a restaurant POS software.
+
+Read the user's question and, using only the information provided, answer in the user's input language.
+
+If the language is not French or Italian, respond in English.
+
+If the user clearly asks about a specific piece of information that has been provided, return that piece of information word for word.
+
+Do not mention or reference any provided information or sources.
+
+If the question cannot be answered based on the provided information, reply with one of the following messages, based on the user's language:
+{fallback_lines}
+""" # CHANGE THIS PROMPT CHANGE THIS PROMPT
+
+
+
+def attachment_handler(message):
+    """
+    Inputs
+    message: dict of message info (will be from Firestore)
+
+    Returns
+    attachment_type: either None, 'audio', or 'unsupported'
+    user_content: None, or str of transcribed user_content
+    """
+
+    attachment = message.get('attachment', None)
+
+    if not attachment:
+        return None, message.get('content')
+
+    if attachment["type"] != "audio":
+        return 'unsupported', None
+
+    # Now type must be audio
+    url = attachment["url"]
+    try:
+        http_response= requests.get(url, headers={"D360-API-KEY": dialog360_key}, timeout=20)
+        http_response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Unable to download audio at {url}: {e}")
+        raise
+
+    
+    # Create temporary audio file
+    audio_file = BytesIO(http_response.content)
+    audio_file.name = "audio.ogg"
+
+    # Get audio transcription
+    transcript = openai_client.audio.transcriptions.create(
+        model=transcription_model,
+        file=audio_file,
+        include=["logprobs"]
+    )
+
+    avg_token_confidence = sum(np.exp(lp.logprob) for lp in transcript.logprobs) / len(transcript.logprobs)
+    if avg_token_confidence < p_audio:
+        user_content = None
+    else:
+        user_content = transcript.text
+    return 'audio', user_content
+
+
+
+
+
+def detect_set_lang(user_content, db_lang, db_phone, doc_ref):
+    """
+    Determines or falls back to a user's language.
+
+    Inputs:
+        user_content (str or None): Text input from the user
+        doc_ref: google.cloud.firestore_v1.document.DocumentReference used for writing lang to db
+
+
+    Returns:
+        lang (str): Language code (e.g., 'en', 'es', etc.)
+
+    Also updates the lang in Firestore if a different, supported language is detected.
+    """
+
+    # Case 1: No message content — fallback only
+    if not user_content:
+        if db_lang:
+            return db_lang
+        else:
+            prefix = db_phone[:2] if db_phone else ""
+            lang = phone_to_language.get(prefix, "en")
+            doc_ref.update({"meta.lang": lang})
+            return lang
+
+    # Case 2: Attempt language detection
+    try:
+        lang_detection = translate_client.detect_language(
+            parent="projects/notifications-service-82362/locations/global",
+            content=user_content,
+            mime_type="text/plain"
+        )
+
+        best_match = lang_detection.languages[0]
+        detected_lang = best_match.language_code
+        is_confident = best_match.confidence >= p_langdetect
+
+        if is_confident and detected_lang in supported_languages:
+            if detected_lang != db_lang:
+                doc_ref.update({"meta.lang": detected_lang})
+            return detected_lang
+
+        else:
+            # Fallback path
+            if db_lang:
+                return db_lang
+            else:
+                prefix = db_phone[:2] if db_phone else ""
+                lang = phone_to_language.get(prefix, "en")
+                doc_ref.update({"meta.lang": lang})
+                return lang
+
+    # API fails: Fallback
+    except Exception as e:
+        logging.warning(f"Language detection failed: {e}")
+        if db_lang:
+            return db_lang
+        else:
+            prefix = db_phone[:2] if db_phone else ""
+            lang = phone_to_language.get(prefix, "en")
+            doc_ref.update({"meta.lang": lang})
+            return lang
+        
+
+
+
+
+def moderate_message(user_content):
+    """
+    Inputs
+    user_content (str): The message to be checked for moderation
+
+    Returns
+    list[str] or None: List of flagged moderation categories if flagged, else None
+    """
+
+    moderation_response = openai_client.moderations.create(
+        model=moderation_model,
+        input=user_content
+    ).results[0]
+
+    if not moderation_response.flagged:
+        return None
+    
+    flagged_categories = [cat for cat, flagged in moderation_response.categories.model_dump().items() if flagged]
+    logging.info(f"Message: {user_content}, flagged by moderation system. Flagged categories: {flagged_categories}")
+    
+    return flagged_categories
+
+
+
+
+
+def generate_embedding(text):
+    """
+    Inputs
+    text: string for embedding
+
+    Returns
+    embedding: a 1xn numpy array of text embedded using our chosen OpenAI embedding model
+    """
+    try:
+        vector = openai_client.embeddings.create(input=text, model=embedding_model).data[0].embedding
+        return np.array([vector], dtype=np.float32)
+    except Exception as e:
+        print(f"Embedding generation failed: {e}")
+        raise
+
+
+
+def knn_search(embedding, index, k, p_cosine_min):
+    # Potentially explore different search modules
+    """
+    Inputs
+    embedding: numpy array of embedded text
+    index: FAISS index
+    p_cosine_min: minimum threshold for 'near' neighbours
+    K: number of nearest neighbours to find
+
+    Returns
+    indices: list of indices of near enough neighbours (in descending order by cosine similarity)
+
+    This function uses inner product to compute cosine similarity, so relies on vectors being normalised.
+    """
+
+    cosines, indices = index.search(embedding, k)
+
+    return [idx for idx, sim in zip(indices[0], cosines[0]) if sim >= p_cosine_min]
+
+
+
+
+
+
+
+
+
+def rewrite_query_update_summary(user_query, thread, summary, doc_ref):
+    """
+    Inputs
+    user_query (str)
+    thread (array): array of dicts (could be empty array)
+    summary (str): string generated conversation summary
+    doc_ref (google.cloud.firestore_v1.document.DocumentReference): for updating the Firestore with summary
+
+    Returns
+    
+
+    Also updates Firestore with new summary
+    """
+
+    if not summary:
+        summary = ""
+
+    # Every 5 messages, rewrite summary from whole thread to avoid drift
+    if len(thread) % restart_summary_every == 0:
+        convo = thread 
+    else:
+        convo = thread[-3:]
+    
+    num_turns = len(convo)
+    convo_flattened = "\n".join([f"{m['role']}: {m['content']}" for m in convo])
+
+    final_summary_prompt = summary_rewrite_template.format(
+        summary=summary,
+        num_turns=str(num_turns),
+        flattened_message_block=convo_flattened
+    )
+
+    # Final updated summary
+    updated_summary = openai_client.chat.completions.create(
+        model=summary_query_model,
+        messages= [
+            {
+                "role": "user",
+                "content": final_summary_prompt
+            }
+        ]
+    ).choices[0].message.content
+
+    # Write new summary to database
+    doc_ref.update({"context.summary": updated_summary})
+
+    assistant_msg = next((m["content"] for m in reversed(convo) if m["role"] == "assistant"), "")
+
+    final_query_prompt = query_rewrite_user_template.format(
+        summary=updated_summary,
+        assistant_msg=assistant_msg,
+        user_msg=user_query
+    )
+
+    optimised_query = openai_client.chat.completions.create(
+        model=summary_query_model,
+        messages= [
+            {
+                "role": "system",
+                "content": query_rewrite__system_prompt
+            },
+            {
+                "role": "user",
+                "content": final_query_prompt
+            }
+        ]
+    ).choices[0].message.content
+
+    return updated_summary, optimised_query
+
+
+
+
+def gpt_responder(information_array, summary, assistant_msg, user_msg):
+    """
+
+    """
+
+
+
+
+
+
+@functions_framework.http
+def receive_and_send(request):
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        return ("", 204, CORS_HEADERS)
+
+    try:
+        data = request.get_json()
+        doc_id = data["ID"]
+    except (TypeError, KeyError):
+        return (
+            json.dumps({"error": "'No document ID passed"}),
+            400,
+            {**CORS_HEADERS, "Content-Type": "application/json"},
+        )
+    
+
+    # Get all relevant info from database
+
+    doc_ref = db_olivia.collection("conversations").document(doc_id)
+    snapshot = doc_ref.get()
+
+    if snapshot.exists:
+        doc_dict = snapshot.to_dict()
+    else:
+        logging.error(f"Unable to find conversation document, ID: {doc_id}")
+
+    meta = doc_dict["meta"]
+
+    db_lang = meta.get("lang", None)
+    db_phone = meta.get("phone", None)
+
+    context = meta["context"]
+
+    # May be null
+    summary = context["summary"]
+    # May be empty array
+    thread = context["thread"]
+
+    dialog = doc_dict["dialog"]
+    if dialog is None:
+        logging.error(f"No dialog found for user: {db_phone}")
+        return json.dumps({"error": f"No dialog found for user: {db_phone}"}), 400
+
+
+    # Get the latest user message
+    user_msg = next(d for d in reversed(dialog) if d.get('role') == 'user')
+    user_msg_ID = user_msg["ID"]
+    user_msg_content = user_msg["content"]
+
+    # And assistant message

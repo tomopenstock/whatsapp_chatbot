@@ -1,0 +1,153 @@
+{
+  "hyperparams": {
+    "k": 5,
+    "p_cosine_min": 0.4,
+    "p_audio": 0.6,
+    "p_lang_detect": 0.6,
+    "restart_summary_every": 6
+  },
+  "models": {
+    "assistant_model": "gpt-4o",
+    "embedding_model": "text-embedding-3-large",
+    "transcription_model": "gpt-4o-transcribe",
+    "moderation_model": "omni-moderation-latest",
+    "summary_query_model": "gpt-4.1-mini"
+  },
+  "prompts": {
+    "summary_rewrite_user_template": "You are updating a short summary of a customer support conversation.\nEnsure that you capture:\n- Main device/product/service\n- Main problem or request\n- Key details already provided (OS, model, network, etc.)\n- Actions already tried\n\nUpdate the summary with any new, relevant info from the following (may be blank if summary not yet generated):\nCurrent summary:\n{summary}\n\nLast {num_turns} turns:\n{flattened_message_block}\n\nReturn only the short, updated summary.",
+    "query_rewrite__system_prompt": "You are a smart assistant that rewrites user input into optimized search queries for semantic retrieval in a chatbot.",
+    "query_rewrite_user_template": "Conversation summary: {summary}\nAssistant asked: {assistant_msg}\nUser replied: {user_msg}\nRewrite the user's reply as a standalone query optimized for semantic search. Incorporate relevant context and technical details from the summary and assistant's question. Output only the final query."
+  },
+  "supported_languages": ["en", "it", "fr"],
+  "phone_to_language": {
+    "44": "en",
+    "33": "fr",
+    "39": "it"
+  },
+  "greeting_responses": {
+    "en": "Hi, I’m Olivia’s assistant. You can ask me things like “How do I void a transaction?” or “How do I add a new item to the menu?” You can type a message or send a voice note, whichever’s easier for you.",
+    "fr": "Bonjour, je suis l’assistante d’Olivia. Vous pouvez me poser des questions comme « Comment annuler une transaction ? » ou « Comment ajouter un nouvel article au menu ? » Envoyez-moi un message texte ou vocal, comme vous préférez.",
+    "it": "Ciao, sono l’assistente di Olivia. Puoi chiedermi ad esempio: “Come annullo una transazione?” oppure “Come aggiungo un nuovo articolo al menu?” Puoi scrivermi o mandarmi un messaggio vocale, come ti è più comodo."
+  },
+  "not_understood_responses": {
+    "en": "I didn’t quite understand. Try rephrasing or ask me something else.",
+    "fr": "Je n’ai pas bien compris. Reformulez ou posez-moi une autre question.",
+    "it": "Non ho capito bene. Prova a riformulare o chiedimi qualcos’altro."
+  },
+  "flagged_content_response": {
+    "en": "I’m not able to help with that request.",
+    "fr": "Je ne peux pas vous aider avec cette question..",
+    "it": "Non posso aiutarti con questa richiesta."
+  },
+  "self_harm_responses": {
+    "en": "It sounds like you're going through something difficult. I'm not the right kind of help for this, but you're not alone. Consider speaking to someone you trust or a mental health professional. You can also contact Samaritans at 116 123, available 24/7 and free to call in the UK and Ireland.",
+    "fr": "Il semble que vous traversez un moment difficile. Je ne suis pas la bonne aide pour cela, mais vous n'êtes pas seul. Parlez-en à quelqu'un en qui vous avez confiance ou à un professionnel de la santé mentale. Vous pouvez aussi contacter SOS Amitié au 09 72 39 40 50, disponible 24 h/24 dans toute la France.",
+    "it": "Sembra che tu stia affrontando un momento difficile. Non sono il tipo di aiuto adatto, ma non sei solo. Parla con qualcuno di fiducia o con un professionista della salute mentale. Puoi anche contattare Telefono Amico CeViTA al 02 99777, disponibile 24 ore su 24, tutti i giorni."
+  },
+  "unsupported_media_responses": {
+    "en": "I can’t process that type of media. I only support audio or text.",
+    "fr": "Je ne peux pas traiter ce type de contenu. Je ne prends en charge que l’audio ou le texte.",
+    "it": "Non posso elaborare questo tipo di contenuto. Sono in grado di gestire solo audio o testo."
+  },
+    "hard_escalate_response": {
+    "en": "I’ve received your request to speak with a human. Someone will contact you on this number within the next 15 minutes. If we can’t reach you, we’ll try again later.",
+    "fr": "J’ai bien reçu ta demande pour parler à un agent. Quelqu’un te contactera sur ce numéro dans les 15 prochaines minutes. Si nous n’arrivons pas à te joindre, nous réessaierons plus tard.",
+    "it": "Ho ricevuto la tua richiesta di parlare con una operatore. Verrai contattato su questo numero entro 15 minuti. Se non riusciamo a raggiungerti, riproveremo più tardi."
+  },
+  "human_escalation": [
+    {
+      "category": "human_escalation",
+      "information_en": "I want to speak to a human.",
+      "information_fr": "Je veux parler à un être humain.",
+      "information_it": "Voglio parlare con un operatore.",
+      "media": null
+    },
+    {
+      "category": "human_escalation",
+      "information_en": "Could you please connect me with a representative?",
+      "information_fr": "Pourriez-vous me mettre en contact avec un représentant ?",
+      "information_it": "Potrebbe mettermi in contatto con un rappresentante?",
+      "media": null
+    },
+    {
+      "category": "human_escalation",
+      "information_en": "This isn’t helping, get me someone who can.",
+      "information_fr": "Cela ne sert à rien, trouvez-moi quelqu'un qui puisse le faire.",
+      "information_it": "Questo non mi è d'aiuto, trovami qualcuno che possa farlo.",
+      "media": null
+    },
+    {
+      "category": "human_escalation",
+      "information_en": "Is anyone real there I can talk to?",
+      "information_fr": "Y a-t-il quelqu'un de réel à qui je puisse parler ?",
+      "information_it": "C'è qualcuno con cui posso parlare?",
+      "media": null
+    },
+    {
+      "category": "human_escalation",
+      "information_en": "I’m done with the bot, give me a person.",
+      "information_fr": "J'en ai fini avec les robots, donnez-moi une personne.",
+      "information_it": "Ho chiuso con il bot, datemi una persona.",
+      "media": null
+    },
+    {
+      "category": "human_escalation",
+      "information_en": "I’d prefer to deal with a person instead.",
+      "information_fr": "Je préfère avoir affaire à une personne.",
+      "information_it": "I’d prefer to deal with a person instead.",
+      "media": null
+    }
+  ],
+  "information": [
+    {
+      "category": "printers",
+      "information_en": "How to Set a Static IP on a Receipt Printer:\n1. Connect the printer to your network using an Ethernet cable.\n2. Print the network configuration by holding the Feed button while turning the printer on. Release when it starts printing.\n3. Note the current IP address from the printout.\n4. Open a browser and enter the IP address (e.g., http://192.168.1.100).\n5. Log in to the web interface (default username/password is usually admin/admin or epson/epson). You can search for specific login details by brand if necessary.\n6. Go to Network Settings > TCP/IP.\n7. Change IP Address Setting to Manual or Static.\n8. Enter the desired static IP, Subnet Mask (e.g., 255.255.255.0), and Gateway (e.g., 192.168.1.1 - it is typically best to use the IP address already assigned to the printer).\n9. Save and reboot the printer.\nMake sure the IP you set is outside your router’s DHCP range to avoid conflicts.",
+      "information_fr": "Comment configurer une adresse IP statique sur une imprimante de reçus :\n1. Connectez l'imprimante à votre réseau à l'aide d'un câble Ethernet.\n2. Imprimez la configuration réseau en maintenant le bouton Feed enfoncé tout en allumant l'imprimante. Relâchez-le lorsque l'impression commence.\n3. Notez l'adresse IP actuelle indiquée sur l'impression.\n4. Ouvrez un navigateur et entrez l'adresse IP (par exemple, http://192.168.1.100).\n5. Connectez-vous à l'interface Web (le nom d'utilisateur/mot de passe par défaut est généralement admin/admin ou epson/epson). Vous pouvez rechercher les informations de connexion spécifiques par marque si nécessaire.\n6. Allez dans Paramètres réseau > TCP/IP.\n7. Modifiez le paramètre Adresse IP sur Manuel ou Statique.\n8. Saisissez l'adresse IP statique souhaitée, le masque de sous-réseau (par exemple, 255.255.255.0) et la passerelle (par exemple, 192.168.1.1 - il est généralement préférable d'utiliser l'adresse IP déjà attribuée à l'imprimante).\n9. Enregistrez et redémarrez l'imprimante.\nAssurez-vous que l'adresse IP que vous avez définie se trouve en dehors de la plage DHCP de votre routeur afin d'éviter tout conflit.",
+      "information_it": "Come impostare un IP statico su una stampante per ricevute:\n1. Collegare la stampante alla rete utilizzando un cavo Ethernet.\n2. Stampare la configurazione di rete tenendo premuto il pulsante Feed mentre si accende la stampante. Rilasciare il pulsante quando inizia la stampa.\n3. Annotare l'indirizzo IP corrente dalla stampa.\n4. Aprire un browser e inserire l'indirizzo IP (ad esempio, http://192.168.1.100).\n5. Accedere all'interfaccia web (il nome utente/password predefiniti sono solitamente admin/admin o epson/epson). Se necessario, è possibile cercare i dettagli di accesso specifici per marca.\n6. Andare su Impostazioni di rete > TCP/IP.\n7. Modificare l'impostazione dell'indirizzo IP su Manuale o Statico.\n8. Immettere l'IP statico desiderato, la subnet mask (ad esempio 255.255.255.0) e il gateway (ad esempio 192.168.1.1; in genere è preferibile utilizzare l'indirizzo IP già assegnato alla stampante).\n9. Salvare e riavviare la stampante.\nAssicurarsi che l'IP impostato sia al di fuori dell'intervallo DHCP del router per evitare conflitti.",
+      "media": null
+    },
+    {
+      "category": "pricing",
+      "information_en": "Discount, tax and totals are calculated in the following way:\n1. Discounts\n1.1 Line Discounts\nItem price = base item + modifiers.\nLine total = item price × quantity\nExact line discount = line total × (discount % / 100)\nExact discount is truncated (not rounded) to 2 decimal places for assigned line discount.\n\n1.2 Sale Level Discounts\nSale discount = sum of exact line discounts then rounded.\nAssigned discount = sum of all assigned line discounts.\nLeftover = sale discount - assigned discount (in pennies).\n\n1.3 Redistribution of Leftover Pennies\nCalculate truncation difference = exact - assigned.\nSort by highest difference, then by earliest created item.\nAdd leftover pennies (1p each) to top n items’ discounts.\nFinal line discount = assigned + redistributed.\nDiscounted line total = line total - final discount.\n\n2. Tax Calculatio\n2.1 Grouping by Tax Rate\nGroup items by tax rate.\nSum discounted line totals per group (includes tax).\n\n2.2 Tax Extraction\nGroup tax = group total × (rate / (1 + rate))\nRound result.\n\n2.3 Totals\nTotal tax = sum of group taxes.\nTotal with tax = sum of all discounted line totals.\nSubtotal = Total with tax - tax → net revenue.\n\n3. Service Charge\n Service charge = Total with tax × (service rate / 100), rounded.\n\n4. Final Total\nTotal = pre-tax total + service charge\n\nNotes:\nAll rounding is standard, half-up to 2 decimal places.",
+      "information_fr": "Les remises, les taxes et les totaux sont calculés de la manière suivante :\n1. Remises\n1.1 Remises sur ligne\nPrix de l'article = article de base + modificateurs.\nTotal de la ligne = prix de l'article × quantité\nRemise exacte sur ligne = total de la ligne × (remise % / 100)\nLa remise exacte est tronquée (et non arrondie) à 2 décimales pour la remise attribuée sur ligne.\n\n1.2 Réductions au niveau de la vente\nRéduction de vente = somme des réductions exactes par ligne, puis arrondie.\nRéduction attribuée = somme de toutes les réductions attribuées par ligne.\nReste = réduction de vente - réduction attribuée (en centimes).\n\n1.3 Redistribution des centimes restants\nCalculer la différence de troncature = exact - attribué.\nTrier par différence la plus élevée, puis par article créé le plus tôt.\nAjoutez les centimes restants (1 centime chacun) aux remises des n premiers articles.\nRemise finale par ligne = remise attribuée + remise redistribuée.\nTotal des remises par ligne = total par ligne - remise finale.\n\n2. Calcul des taxes\n2.1 Regroupement par taux d'imposition\nRegroupez les articles par taux d'imposition.\nAdditionnez les totaux des remises par ligne par groupe (taxes comprises).\n\n2.2 Extraction de la taxe\nTaxe du groupe = total du groupe × (taux / (1 + taux))\nArrondir le résultat.\n\n2.3 Totaux\nTaxe totale = somme des taxes du groupe.\nTotal avec taxe = somme de tous les totaux des lignes avec remise.\nSous-total = total avec taxe - taxe → revenu net.\n\n3. Frais de service\n Frais de service = total avec taxe × (taux de service / 100), arrondi.\n\n4. Total final\nTotal = total hors taxe + frais de service\n\nRemarques:\nTous les arrondis sont standard, à la demi-unité supérieure, à 2 décimales près.",
+      "information_it": "Sconti, imposte e totali vengono calcolati nel modo seguente:\n1. Sconti\n1.1 Sconti per riga\nPrezzo dell'articolo = articolo base + modificatori.\nTotale della riga = prezzo dell'articolo × quantità\nSconto esatto per riga = totale della riga × (sconto % / 100)\nLo sconto esatto viene troncato (non arrotondato) a 2 cifre decimali per lo sconto assegnato alla riga.\n\n1.2 Sconti a livello di vendita\nSconto di vendita = somma degli sconti esatti per riga, quindi arrotondata.\nSconto assegnato = somma di tutti gli sconti assegnati per riga.\nRimanente = sconto di vendita - sconto assegnato (in centesimi).\n\n1.3 Ridistribuzione dei centesimi rimanenti\nCalcolare la differenza di troncamento = esatto - assegnato.\nOrdinare in base alla differenza più alta, quindi in base all'articolo creato per primo.\n Aggiungere i centesimi rimanenti (1 centesimo ciascuno) agli sconti degli articoli n più costosi.\nSconto finale sulla riga = assegnato + ridistribuito.\nTotale scontato sulla riga = totale sulla riga - sconto finale.\n\n2. Calcolo delle imposte\n2.1 Raggruppamento per aliquota fiscale\nRaggruppare gli articoli per aliquota fiscale.\nSomma dei totali scontati per riga per gruppo (imposte incluse).\n\n2.2 Estrazione delle imposte\nImposta di gruppo = totale di gruppo × (aliquota / (1 + aliquota))\nArrotondare il risultato.\n\n2.3 Totali\nImposta totale = somma delle imposte di gruppo.\nTotale con imposta = somma di tutti i totali delle righe scontate.\nTotale parziale = Totale con imposta - imposta → ricavo netto.\n\n3. Costo del servizio\n Costo del servizio = Totale con imposta × (aliquota del servizio / 100), arrotondato.\n\n4. Totale finale\nTotale = totale al netto delle imposte + costo del servizio\n\nNote:\nTutti gli arrotondamenti sono standard, arrotondati al rialzo a 2 cifre decimali.",
+      "media": null
+    },
+    {
+      "category": "reports",
+      "information_en": "Reporting Summary\n\nEach sale includes:\nTotal (with tax & service, no tips)\nSubtotal (no tax/service/tips)\nTotal tax\nTotal discount\nService/tips\nPer-item discounts\nTax breakdown by rate\n\nWhen generating reports, sales are grouped and values are calculated in the following ways:\n1 Net = sum of all subtotals\n2 Tax = sum of all tax amounts\n3 Gross = Net + Tax\n4 Gratuity = sum of service charges + tips\n5 Discount Summary = grouped by % & label, summed per group\n6 Refunds = refunded net, tax, gross calculated as above\n\nNote:\nRefunded sales are excluded unless refund report is selected.",
+      "information_fr": "Résumé du rapport\n\nChaque vente comprend :\nTotal (avec taxes et service, sans pourboires)\nSous-total (sans taxes/service/pourboires)\nTotal des taxes\nTotal des remises\nService/pourboires\nRemises par article\nVentilation des taxes par taux\n\nLors de la génération des rapports, les ventes sont regroupées et les valeurs sont calculées de la manière suivante :\n1 Net = somme de tous les sous-totaux\n2 Taxe = somme de tous les montants de taxe\n3 Brut = Net + Taxe\n4 Pourboire = somme des frais de service + pourboires\n5 Résumé des remises = regroupées par % et étiquette, additionnées par groupe\n6 Remboursements = net remboursé, taxe, brut calculé comme ci-dessus\n\nRemarque:\nLes ventes remboursées sont exclues, sauf si le rapport de remboursement est sélectionné.",
+      "information_it": "Riepilogo report\n\nOgni vendita include:\nTotale (con tasse e servizio, senza mance)\nTotale parziale (senza tasse/servizio/mance)\nTotale tasse\nTotale sconto\nServizio/mance\nSconti per articolo\nRipartizione delle tasse per aliquota\n\nQuando si generano i report, le vendite vengono raggruppate e i valori vengono calcolati nei seguenti modi:\n1 Netto = somma di tutti i subtotali\n2 Imposte = somma di tutti gli importi delle imposte\n3 Lordo = Netto + Imposte\n4 Mance = somma dei costi di servizio + mance\n5 Riepilogo sconti = raggruppati per % ed etichetta, sommati per gruppo\n6 Rimborsi = netto rimborsato, imposte, lordo calcolato come sopra\n\nNota:\nLe vendite rimborsate sono escluse a meno che non sia selezionato il report dei rimborsi.",
+      "media": null
+    },
+    {
+      "category": "printers",
+      "information_en": "Olivia POS supports the following receipt printers (tested & verified compatibly):\n\nBlue Bamboo\n• P25 Bluetooth Printer — Bluetooth \n\nEpson (Thermal)\n• TM‑L90 — LAN\n• TM‑L100 — LAN\n• TM‑m10 — LAN, Wi‑Fi, Bluetooth\n• TM‑m30 series (TM‑m30II, TM‑m30II‑NT, TM‑m30III) — USB, LAN, Wi‑Fi, Bluetooth\n• TM‑P80 (mobile printer) — Wi‑Fi\n• TM‑T20II / T20III — LAN\n• TM‑T70 — LAN, Wi‑Fi\n• TM‑T82 III — LAN, Wi‑Fi, Bluetooth\n• TM‑T88V (or VI) — LAN, Wi‑Fi, Bluetooth \n\nEpson (Impact)\n• TM‑U220 / TM‑U220B — Impact Dot‑Matrix, LAN, Wi‑Fi \n\nSeiko\n• MP‑B20 — Bluetooth mobile\n• RP‑D10 — LAN, Bluetooth\n• RP‑E10 — LAN only \n\nBixolon\n• SRP‑275III LAN — LAN only\n• SPP‑R300 (portable) — Wi‑Fi \n\nStar Micronics\n• Star TSP‑100 / 143 — USB, LAN\n• Star TSP‑100/143 III — USB, LAN\n• Star TSP‑100/143 IV — LAN, Wi‑Fi\n\nThere are also compatible (not officially supported) printers that may work when assigned a static IP and configured in the Olivia back office, but they weren’t specifically tested and verified.",
+      "information_fr": "Olivia POS prend en charge les imprimantes de reçus suivantes (testées et vérifiées comme étant compatibles) :\n\nBlue Bamboo\n• Imprimante Bluetooth P25 — Bluetooth \n\nEpson (thermique)\n• TM‑L90 — LAN\n• TM‑L100 — LAN\n• TM‑m10 — LAN, Wi‑Fi, Bluetooth\n• Série TM‑m30 (TM‑m30II, TM‑m30II‑NT, TM‑m30III) — USB, LAN, Wi‑Fi, Bluetooth\n• TM‑P80 (imprimante mobile) — Wi‑Fi\n• TM‑T20II / T20III — LAN\n• TM‑T70 — LAN, Wi‑Fi\n• TM‑T82 III — LAN, Wi‑Fi, Bluetooth\n• TM‑T88V (ou VI) — LAN, Wi‑Fi, Bluetooth \n\nEpson (Impact)\n• TM‑U220 / TM‑U220B — Impact Dot‑Matrix, LAN, Wi‑Fi \n\nSeiko\n• MP‑B20 — Bluetooth mobile\n• RP‑D10 — LAN, Bluetooth\n• RP‑E10 — LAN uniquement \n\nBixolon\n• SRP‑275III LAN — LAN uniquement\n• SPP‑R300 (portable) — Wi‑Fi \n\nStar Micronics\n• Star TSP‑100 / 143 — USB, LAN\n• Star TSP‑100/143 III — USB, LAN\n• Star TSP‑100/143 IV — LAN, Wi‑Fi\n\nIl existe également des imprimantes compatibles (non officiellement prises en charge) qui peuvent fonctionner lorsqu'elles sont assignées à une adresse IP statique et configurées dans le back-office Olivia, mais elles n'ont pas été spécifiquement testées et vérifiées.",
+      "information_it": "Olivia POS supporta le seguenti stampanti per ricevute (testate e verificate per la compatibilità):\n\nBlue Bamboo\n• Stampante Bluetooth P25 — Bluetooth \n\nEpson (termica)\n• TM‑L90 — LAN\n• TM‑L100 — LAN\n• TM‑m10 — LAN, Wi‑Fi, Bluetooth\n• Serie TM‑m30 (TM‑m30II, TM‑m30II‑NT, TM‑m30III) — USB, LAN, Wi‑Fi, Bluetooth\n• TM‑P80 (stampante mobile) — Wi‑Fi\n• TM‑T20II / T20III — LAN\n• TM‑T70 — LAN, Wi‑Fi\n• TM‑T82 III — LAN, Wi‑Fi, Bluetooth\n• TM‑T88V (o VI) — LAN, Wi‑Fi, Bluetooth \n\nEpson (a impatto)\n• TM‑U220 / TM‑U220B — Matrice a impatto, LAN, Wi‑Fi \n\nSeiko\n• MP‑B20 — Bluetooth mobile\n• RP‑D10 — LAN, Bluetooth\n• RP‑E10 — Solo LAN \n\nBixolon\n• SRP‑275III LAN — Solo LAN\n• SPP‑R300 (portatile) — Wi‑Fi \n\nStar Micronics\n• Star TSP‑100 / 143 — USB, LAN\n• Star TSP‑100/143 III — USB, LAN\n• Star TSP‑100/143 IV — LAN, Wi‑Fi\n\nEsistono anche stampanti compatibili (non supportate ufficialmente) che potrebbero funzionare se viene loro assegnato un IP statico e configurate nel back office di Olivia, ma non sono state specificatamente testate e verificate.",
+      "media": null
+    },
+    {
+      "category": "subscription",
+      "information_en": "To start a subscription with Olivia POS, please sign into the Olivia back office at https://www.oliviapos.com/. If you have no subscription, at the top of the webpage you should see a blue 'Subscribe' button. This will ask you to select a billing interval, and redirect you to the Olivia subscription customer portal where you can activate your subscription.",
+      "information_fr": "Pour souscrire un abonnement à Olivia POS, veuillez vous connecter au back-office Olivia à l'adresse https://www.oliviapos.com/. Si vous n'avez pas encore d'abonnement, vous devriez voir un bouton bleu « S'abonner » en haut de la page Web. Vous serez alors invité à sélectionner une fréquence de facturation, puis redirigé vers le portail client Olivia où vous pourrez activer votre abonnement.",
+      "information_it": "Per attivare un abbonamento a Olivia POS, accedi al back office di Olivia all'indirizzo https://www.oliviapos.com/. Se non hai un abbonamento, nella parte superiore della pagina web dovresti vedere un pulsante blu “Abbonati”. Ti verrà chiesto di selezionare un intervallo di fatturazione e verrai reindirizzato al portale clienti di Olivia dove potrai attivare il tuo abbonamento.",
+      "media": null
+    },
+    {
+      "category": "subscription",
+      "information_en": "To manage or cancel your Olivia POS subscription, please sign into the Olivia back office at https://www.oliviapos.com/. At the top of the webpage you should see a blue 'Manage' button. This will redirect you to the Olivia subscription customer portal where you can change your billing interval, view Olivia POS subscription invoices, add payment methods and cancel your subscription.",
+      "information_fr": "Pour gérer ou résilier votre abonnement Olivia POS, veuillez vous connecter au back-office Olivia à l'adresse https://www.oliviapos.com/. En haut de la page Web, vous devriez voir un bouton bleu « Gérer ». Celui-ci vous redirigera vers le portail client des abonnements Olivia, où vous pourrez modifier votre fréquence de facturation, consulter les factures de votre abonnement Olivia POS, ajouter des modes de paiement et résilier votre abonnement.",
+      "information_it": "Per gestire o cancellare il tuo abbonamento a Olivia POS, accedi al back office di Olivia all'indirizzo https://www.oliviapos.com/. Nella parte superiore della pagina web dovresti vedere un pulsante blu “Gestisci”. Questo ti reindirizzerà al portale clienti dell'abbonamento Olivia, dove potrai modificare la frequenza di fatturazione, visualizzare le fatture dell'abbonamento a Olivia POS, aggiungere metodi di pagamento e cancellare il tuo abbonamento.",
+      "media": null
+    },
+    {
+      "category": "floorplan",
+      "information_en": "To change your restaurant floorplans, please sign into the Olivia back office at https://www.oliviapos.com/. Select Build > Floor - here you can select dining area, alter table positions add new tables and edit existing tables by double clicking. Table names are limited to 5 characters, and cannot include 0s. Leaving 'default covers' unchecked will prompt users to enter number of covers when opening the table.",
+      "information_fr": "Pour modifier les plans de votre restaurant, veuillez vous connecter à l'interface d'administration Olivia à l'adresse https://www.oliviapos.com/. Sélectionnez « Build » (Construire) > « Floor » (Étage) : vous pouvez alors sélectionner la salle à manger, modifier la position des tables, ajouter de nouvelles tables et modifier les tables existantes en double-cliquant dessus. Les noms des tables sont limités à 5 caractères et ne peuvent pas contenir de zéros. Si vous ne cochez pas la case « default covers » (couvertures par défaut), les utilisateurs seront invités à saisir le nombre de couvertures lorsqu'ils ouvriront la table.",
+      "information_it": "Per modificare le planimetrie del tuo ristorante, accedi al back office di Olivia all'indirizzo https://www.oliviapos.com/. Seleziona Build > Floor (Costruisci > Piano): qui puoi selezionare la sala da pranzo, modificare la posizione dei tavoli, aggiungere nuovi tavoli e modificare quelli esistenti facendo doppio clic. I nomi dei tavoli sono limitati a 5 caratteri e non possono includere lo 0. Se lasci deselezionata l'opzione “default covers” (coperti predefiniti), agli utenti verrà richiesto di inserire il numero di coperti all'apertura del tavolo.",
+      "media": null
+    }
+  ]
+}
+
