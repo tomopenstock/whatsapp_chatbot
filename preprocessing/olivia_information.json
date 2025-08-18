@@ -4,6 +4,7 @@
     "p_cosine_min": 0.4,
     "p_audio": 0.6,
     "p_lang_detect": 0.6,
+    "p_human_escalation": 0.8,
     "restart_summary_every": 6
   },
   "models": {
@@ -11,12 +12,14 @@
     "embedding_model": "text-embedding-3-large",
     "transcription_model": "gpt-4o-transcribe",
     "moderation_model": "omni-moderation-latest",
+    "moderation_self_harm_categories": ["self-harm", "self-harm/intent", "self-harm/instructions"],
     "summary_query_model": "gpt-4.1-mini"
   },
   "prompts": {
     "summary_rewrite_user_template": "You are updating a short summary of a customer support conversation.\nEnsure that you capture:\n- Main device/product/service\n- Main problem or request\n- Key details already provided (OS, model, network, etc.)\n- Actions already tried\n\nUpdate the summary with any new, relevant info from the following (may be blank if summary not yet generated):\nCurrent summary:\n{summary}\n\nLast {num_turns} turns:\n{flattened_message_block}\n\nReturn only the short, updated summary.",
     "query_rewrite__system_prompt": "You are a smart assistant that rewrites user input into optimized search queries for semantic retrieval in a chatbot.",
-    "query_rewrite_user_template": "Conversation summary: {summary}\nAssistant asked: {assistant_msg}\nUser replied: {user_msg}\nRewrite the user's reply as a standalone query optimized for semantic search. Incorporate relevant context and technical details from the summary and assistant's question. Output only the final query."
+    "query_rewrite_user_template": "Conversation summary: {summary}\nAssistant asked: {assistant_msg}\nUser replied: {user_msg}\nRewrite the user's reply as a standalone query optimized for semantic search. Incorporate relevant context and technical details from the summary and assistant's question. Output only the final query.",
+    "generate_response_prompt": "You are the user assistant for Olivia POS, a technologically advanced electronic point-of-sale system designed for the hospitality industry, based in the UK and run on iPads.\nRespond to the user in language associated with the following language code: {lang_code}\nUse the provided context, the conversation summary and the last 4 messages to answer the user's question. Answer based on the information in the context. If the answer is not clear given the context, you may ask clarifying questions or explain that they must provide more information. You understand restaurant operations and modern hospitality workflows.\nPresent yourself as a confident, sophisticated woman. You are warm, kind, and helpful, but always direct. Your responses are polite, professional, and concise. Your tone is calm, clear, and assertive. Do not use emojis, dashes or informal language. You do not use “sorry,” “please,” or “thank you” unless necessary, and you avoid filler phrases like “great question” unless they serve a clear purpose. Do not refer to yourself as an AI, chatbot, or robot.\n\nYou are expected to handle the kinds of questions (using the provided context) a user would ask when contacting restaurant EPOS support, including:\n- Onboarding guidance (installation, setup)\n- Feature explanations (menus, modifiers, printing, reports)\n- Troubleshooting common issues (Wi‑Fi, syncing, printing, crashes\n- Billing and account inquiries (plans, payments, cancellations)\n- Redirecting to human support when needed\n\nDo not answer questions involving:\n- Third-party product comparisons\n- Legal, financial, or medical advice\n- Personal opinions or speculative answers (e.g. “I think”, “maybe”)\n- Technical support for unrelated products\n\nIf relevant, you may use the following facts:\n- Website: www.oliviapos.com\n- Contact: contact@oliviapos.com\n- Billing: Monthly or yearly, cancel anytime\n- Pricing: 139 plus tax per month, or 1499 plus tax per year\n- Prices are the same across all currencies (do not convert or localise)."
   },
   "supported_languages": ["en", "it", "fr"],
   "phone_to_language": {
@@ -24,35 +27,37 @@
     "33": "fr",
     "39": "it"
   },
-  "greeting_responses": {
-    "en": "Hi, I’m Olivia’s assistant. You can ask me things like “How do I void a transaction?” or “How do I add a new item to the menu?” You can type a message or send a voice note, whichever’s easier for you.",
-    "fr": "Bonjour, je suis l’assistante d’Olivia. Vous pouvez me poser des questions comme « Comment annuler une transaction ? » ou « Comment ajouter un nouvel article au menu ? » Envoyez-moi un message texte ou vocal, comme vous préférez.",
-    "it": "Ciao, sono l’assistente di Olivia. Puoi chiedermi ad esempio: “Come annullo una transazione?” oppure “Come aggiungo un nuovo articolo al menu?” Puoi scrivermi o mandarmi un messaggio vocale, come ti è più comodo."
-  },
-  "not_understood_responses": {
-    "en": "I didn’t quite understand. Try rephrasing or ask me something else.",
-    "fr": "Je n’ai pas bien compris. Reformulez ou posez-moi une autre question.",
-    "it": "Non ho capito bene. Prova a riformulare o chiedimi qualcos’altro."
-  },
-  "flagged_content_response": {
-    "en": "I’m not able to help with that request.",
-    "fr": "Je ne peux pas vous aider avec cette question..",
-    "it": "Non posso aiutarti con questa richiesta."
-  },
-  "self_harm_responses": {
-    "en": "It sounds like you're going through something difficult. I'm not the right kind of help for this, but you're not alone. Consider speaking to someone you trust or a mental health professional. You can also contact Samaritans at 116 123, available 24/7 and free to call in the UK and Ireland.",
-    "fr": "Il semble que vous traversez un moment difficile. Je ne suis pas la bonne aide pour cela, mais vous n'êtes pas seul. Parlez-en à quelqu'un en qui vous avez confiance ou à un professionnel de la santé mentale. Vous pouvez aussi contacter SOS Amitié au 09 72 39 40 50, disponible 24 h/24 dans toute la France.",
-    "it": "Sembra che tu stia affrontando un momento difficile. Non sono il tipo di aiuto adatto, ma non sei solo. Parla con qualcuno di fiducia o con un professionista della salute mentale. Puoi anche contattare Telefono Amico CeViTA al 02 99777, disponibile 24 ore su 24, tutti i giorni."
-  },
-  "unsupported_media_responses": {
-    "en": "I can’t process that type of media. I only support audio or text.",
-    "fr": "Je ne peux pas traiter ce type de contenu. Je ne prends en charge que l’audio ou le texte.",
-    "it": "Non posso elaborare questo tipo di contenuto. Sono in grado di gestire solo audio o testo."
-  },
-    "hard_escalate_response": {
-    "en": "I’ve received your request to speak with a human. Someone will contact you on this number within the next 15 minutes. If we can’t reach you, we’ll try again later.",
-    "fr": "J’ai bien reçu ta demande pour parler à un agent. Quelqu’un te contactera sur ce numéro dans les 15 prochaines minutes. Si nous n’arrivons pas à te joindre, nous réessaierons plus tard.",
-    "it": "Ho ricevuto la tua richiesta di parlare con una operatore. Verrai contattato su questo numero entro 15 minuti. Se non riusciamo a raggiungerti, riproveremo più tardi."
+  "preset_responses": { 
+    "greeting_responses": {
+      "en": "Hi, I’m Olivia’s assistant. You can ask me things like “How do I void a transaction?” or “How do I add a new item to the menu?” You can type a message or send a voice note, whichever’s easier for you.",
+      "fr": "Bonjour, je suis l’assistante d’Olivia. Vous pouvez me poser des questions comme « Comment annuler une transaction ? » ou « Comment ajouter un nouvel article au menu ? » Envoyez-moi un message texte ou vocal, comme vous préférez.",
+      "it": "Ciao, sono l’assistente di Olivia. Puoi chiedermi ad esempio: “Come annullo una transazione?” oppure “Come aggiungo un nuovo articolo al menu?” Puoi scrivermi o mandarmi un messaggio vocale, come ti è più comodo."
+    },
+    "not_understood_responses": {
+      "en": "I didn’t quite understand. Try rephrasing or ask me something else.",
+      "fr": "Je n’ai pas bien compris. Reformulez ou posez-moi une autre question.",
+      "it": "Non ho capito bene. Prova a riformulare o chiedimi qualcos’altro."
+    },
+    "flagged_content_responses": {
+      "en": "I’m not able to help with that request.",
+      "fr": "Je ne peux pas vous aider avec cette question..",
+      "it": "Non posso aiutarti con questa richiesta."
+    },
+    "self_harm_responses": {
+      "en": "It sounds like you're going through something difficult. I'm not the right kind of help for this, but you're not alone. Consider speaking to someone you trust or a mental health professional. You can also contact Samaritans at 116 123, available 24/7 and free to call in the UK and Ireland.",
+      "fr": "Il semble que vous traversez un moment difficile. Je ne suis pas la bonne aide pour cela, mais vous n'êtes pas seul. Parlez-en à quelqu'un en qui vous avez confiance ou à un professionnel de la santé mentale. Vous pouvez aussi contacter SOS Amitié au 09 72 39 40 50, disponible 24 h/24 dans toute la France.",
+      "it": "Sembra che tu stia affrontando un momento difficile. Non sono il tipo di aiuto adatto, ma non sei solo. Parla con qualcuno di fiducia o con un professionista della salute mentale. Puoi anche contattare Telefono Amico CeViTA al 02 99777, disponibile 24 ore su 24, tutti i giorni."
+    },
+    "unsupported_media_responses": {
+      "en": "I can’t process that type of media. I only support audio or text.",
+      "fr": "Je ne peux pas traiter ce type de contenu. Je ne prends en charge que l’audio ou le texte.",
+      "it": "Non posso elaborare questo tipo di contenuto. Sono in grado di gestire solo audio o testo."
+    },
+      "hard_escalate_responses": {
+      "en": "I’ve received your request to speak with a human. Someone will contact you on this number within the next 15 minutes. If we can’t reach you, we’ll try again later.",
+      "fr": "J’ai bien reçu ta demande pour parler à un agent. Quelqu’un te contactera sur ce numéro dans les 15 prochaines minutes. Si nous n’arrivons pas à te joindre, nous réessaierons plus tard.",
+      "it": "Ho ricevuto la tua richiesta di parlare con una operatore. Verrai contattato su questo numero entro 15 minuti. Se non riusciamo a raggiungerti, riproveremo più tardi."
+    }
   },
   "human_escalation": [
     {

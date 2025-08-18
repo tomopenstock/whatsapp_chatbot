@@ -48,6 +48,7 @@ models = data["models"]
 
 assistant_model = models["assistant_model"]
 moderation_model = models["moderation_model"]
+moderation_self_harm_categories = models["moderation_self_harm_categories"]
 transcription_model = models["transcription_model"]
 summary_query_model = models["summary_query_model"]
 embedding_model = models['embedding_model']
@@ -56,13 +57,18 @@ embedding_model = models['embedding_model']
 # AND HERE
 hyperparams = data["hyperparams"]
 
-p_audio = hyperparams["p_audio"]
-p_langdetect = hyperparams["p_langdetect"]
-restart_summary_every = hyperparams["restart_summary_every"]
+k = hyperparams["k"] # Number of nearest neighbours to retrieve
+p_cosine_min = hyperparams["p_cosine_min"] # cosine similarity threshold
+p_audio = hyperparams["p_audio"] # minimum threshold for average probability per token transcribed
+p_langdetect = hyperparams["p_langdetect"] # minimum threshold for probability of language detected
+p_human_escalation = hyperparams["p_human_escalation"] # minimum threshold for cosine similarity to escalate to human support
+restart_summary_every = hyperparams["restart_summary_every"] # summary rewritten from entire thread at these regular intervals
 
-# AND HERE
+
+# PROMPRTS AND TEMPLATES
 prompts = data["prompts"]
 
+generate_response_prompt = prompts["generate_response_prompt"]
 summary_rewrite_template = prompts["summary_rewrite_template"]
 query_rewrite__system_prompt = prompts["query_rewrite__system_prompt"]
 query_rewrite_user_template = prompts["query_rewrite_user_template"]
@@ -74,19 +80,19 @@ human_escalation_df = pd.DataFrame(data["human_escalation"])
 
 
 
-
-
+supported_languages = data["supported_languages"]
+phone_to_language = data["phone_to_language"]
 
 
 # assign all the preset responses from our downloaded data
-supported_languages = data["supported_languages"]
-phone_to_language = data["phone_to_language"]
-greeting_responses = data["greeting_responses"]
-not_understood_responses = data["not_understood_responses"]
-flagged_content_response = data["flagged_content_response"]
-self_harm_responses = data["self_harm_responses"]
-unsupported_media_responses = data["unsupported_media_responses"]
-hard_escalate_response = data["hard_escalate_response"]
+preset_responses = data["preset_responses"]
+
+greeting_responses = preset_responses["greeting_responses"]
+not_understood_responses = preset_responses["not_understood_responses"]
+flagged_content_responses = preset_responses["flagged_content_responses"]
+self_harm_responses = preset_responses["self_harm_responses"]
+unsupported_media_responses = preset_responses["unsupported_media_responses"]
+hard_escalate_responses = preset_responses["hard_escalate_responses"]
 
 
 
@@ -326,7 +332,7 @@ def knn_search(embedding, index, k, p_cosine_min):
 
 
 
-def rewrite_query_update_summary(user_query, thread, summary, doc_ref):
+def rewrite_query_update_summary(user_content, thread, summary, doc_ref):
     """
     Inputs
     user_query (str)
@@ -343,7 +349,7 @@ def rewrite_query_update_summary(user_query, thread, summary, doc_ref):
     if not summary:
         summary = ""
 
-    # Every 5 messages, rewrite summary from whole thread to avoid drift
+    # At regular intervals rewrite summary from whole thread to avoid drift
     if len(thread) % restart_summary_every == 0:
         convo = thread 
     else:
@@ -377,7 +383,7 @@ def rewrite_query_update_summary(user_query, thread, summary, doc_ref):
     final_query_prompt = query_rewrite_user_template.format(
         summary=updated_summary,
         assistant_msg=assistant_msg,
-        user_msg=user_query
+        user_msg=user_content
     )
 
     optimised_query = openai_client.chat.completions.create(
@@ -399,11 +405,44 @@ def rewrite_query_update_summary(user_query, thread, summary, doc_ref):
 
 
 
-def gpt_responder(information_array, summary, assistant_msg, user_msg):
+def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
+    """
+    Inputs
+    information_array (array): containing strings of retreived information
+    summary (str): GPT generated summary
+    last_four_msgs (array): 
+
+    Returns
+    (str) generated GPT response
     """
 
-    """
+    context = '\n\n'.join(information_array)
 
+    response = openai_client.chat.completions.create(
+        model=assistant_model,
+        messages = [
+            {"role": "system", "content": generate_response_prompt.format(lang_code=lang)},
+
+            # Conversation summary injected as a user message
+            {
+                "role": "user",
+                "content": f"Conversation summary so far:\n{summary}"
+            },
+
+            # Retrieved context for grounding
+            {
+                "role": "user",
+                "content": f"Relevant knowledge (context):\n{context}"
+            },
+
+
+            # Previous messages, in correct order
+            {"role": "assistant", "content": assistant_msg},
+            {"role": "user", "content": user_msg}
+        ]
+    ).choices[0].message.content
+
+    return response
 
 
 
@@ -441,7 +480,7 @@ def receive_and_send(request):
     db_lang = meta.get("lang", None)
     db_phone = meta.get("phone", None)
 
-    context = meta["context"]
+    context = doc_dict["context"]
 
     # May be null
     summary = context["summary"]
@@ -459,4 +498,61 @@ def receive_and_send(request):
     user_msg_ID = user_msg["ID"]
     user_msg_content = user_msg["content"]
 
+
+    assistant_msg = next((d for d in reversed(dialog) if d.get('role') == 'assistant'), None)
+    assistant_msg_content = assistant_msg["content"] if assistant_msg else ""
+
+
     # And assistant message
+
+
+    user_msg_attachment, user_msg_content = attachment_handler(user_msg)
+
+    lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
+
+    if user_msg_attachment == "unsupported":
+        response = unsupported_media_responses[lang]
+        # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+
+    if not user_msg_content:
+        response = not_understood_responses[lang]
+        # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+    
+
+    moderation_flags = moderate_message(user_msg_content)
+
+    if moderation_flags:
+        if set(moderation_flags) & set(moderation_self_harm_categories):
+            response = self_harm_responses[lang]
+            # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+        
+        else: 
+            response = flagged_content_responses[lang]
+            # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+
+
+    # HERE WE MUST CALL FUNCTION THAT CHECKS FOR SEMANTIC SHIFT IN CONVERSATION.
+
+
+    content_embedding = generate_embedding(user_msg_content)
+
+    if knn_search(content_embedding, escalation_index, 1, p_cosine_min):
+        response = hard_escalate_responses[lang]
+        # SEND RESPONSE TO FIRESTORE DIALOG AND WRITE TO THREAD WITH USER INPUT
+        # SET ESCALATE TO TRUE
+    
+
+    updated_summary, optimised_query = rewrite_query_update_summary(user_msg_content, dialog, summary, doc_ref)
+    
+    optimised_query_embedding = generate_embedding(optimised_query)
+    search_indices = knn_search(optimised_query_embedding, info_index, k, p_cosine_min)
+
+    if not search_indices:
+        response = not_understood_responses[lang]
+        # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+    
+    search_results = info_df.loc[search_indices, f'information_{lang}'].tolist()
+
+    response = gpt_responder(search_results, updated_summary, assistant_msg_content, user_msg_content, lang)
+    # SEND RESPONSE TO FIRESTORE DIALOG AND WRITE THE ASSISTANT AND USER MESSAGE TO THREAD
+
