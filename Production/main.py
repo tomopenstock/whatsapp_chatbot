@@ -71,6 +71,7 @@ prompts = data["prompts"]
 
 generate_response_prompt = prompts["generate_response_prompt"]
 permitted_topics = prompts["permitted_topics"]
+banned_topics = prompts["banned_topics"]
 summary_rewrite_template = prompts["summary_rewrite_user_template"]
 query_rewrite_system_prompt = prompts["query_rewrite_system_prompt"]
 query_rewrite_user_template = prompts["query_rewrite_user_template"]
@@ -120,17 +121,6 @@ escalation_dim = info_matrix.shape[1]
 escalation_index = faiss.IndexFlatIP(escalation_dim)
 escalation_index.add(human_escalation_matrix)
 
-
-
-
-
-
-fallback_lines = "\n".join(
-    f"- {lang_code}: {not_understood_responses[lang_code]}"
-    for lang_code in supported_languages
-)
-
-generate_response_prompt += f"\n\nIf the question cannot be answered based on the provided information, reply with one of the following messages, based on the user's language: {fallback_lines}"
 
 
 
@@ -191,6 +181,7 @@ def is_msg_greeting(message):
             return True, greeting_lang
 
     return False, None
+
 
 
 def detect_set_lang(user_content, db_lang, db_phone, doc_ref):
@@ -388,7 +379,6 @@ def rewrite_query_update_summary(user_content, thread, summary):
     )
 
 
-    #POSSIBLY ONLY INCLUDE THE ASSISTANT MESSAGE IF THERE WAS NO TOPIC SHIFT
     optimised_query = openai_client.chat.completions.create(
         model=summary_query_model,
         messages= [
@@ -415,7 +405,6 @@ def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
     Inputs
     information_array (array): containing strings of retreived information
     summary (str): GPT generated summary
-    last_four_msgs (array): 
 
     Returns
     (str) generated GPT response
@@ -423,10 +412,8 @@ def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
 
     context = '\n\n'.join(information_array)
 
-    response = openai_client.chat.completions.create(
-        model=assistant_model,
-        messages = [
-            {"role": "system", "content": generate_response_prompt.format(lang_code=lang)},
+    messages = [
+            {"role": "system", "content": generate_response_prompt.format(lang_code=lang, permitted_topics=" ,".join(s.lower() for s in permitted_topics), banned_topics=" ,".join(s.lower() for s in banned_topics))},
 
             # Conversation summary injected as a user message
             {
@@ -443,12 +430,28 @@ def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
             # Previous messages, in correct order
             {"role": "assistant", "content": assistant_msg},
             {"role": "user", "content": user_msg}
-        ]
+    ]
+
+    logging.info(f"GPT INPUT IS: {messages}")
+
+    # CHANGE THIS BACK TO BEFORE JUST USE FOR LOGGING
+
+    response = openai_client.chat.completions.create(
+        model=assistant_model,
+        messages = messages
     ).choices[0].message.content
 
     return response
 
 
+
+def create_assistant_entry(response):
+    return {
+        "ID": str(uuid.uuid4()).upper(),
+        "role": "assistant",
+        "content": response,
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+    }
 
 
 
@@ -513,12 +516,7 @@ def receive_and_send(request):
     if user_msg_attachment == "unsupported":
         lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
         response = unsupported_media_responses[lang]
-        assistant_entry = {
-            "ID": str(uuid.uuid4()).upper(),
-            "role": "assistant",
-            "content": response,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-        }
+        assistant_entry = create_assistant_entry(response)
 
         dialog.append(assistant_entry)
         doc_ref.update({"dialog": dialog})
@@ -528,12 +526,7 @@ def receive_and_send(request):
     if not user_msg_content:
         lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
         response = not_understood_responses[lang]
-        assistant_entry = {
-            "ID": str(uuid.uuid4()).upper(),
-            "role": "assistant",
-            "content": response,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-        }
+        assistant_entry = create_assistant_entry(response)
 
         dialog.append(assistant_entry)
         doc_ref.update({"dialog": dialog})
@@ -543,12 +536,7 @@ def receive_and_send(request):
     greeting, greeting_lang = is_msg_greeting(user_msg_content)
     if greeting:
         response = greeting_responses[greeting_lang]
-        assistant_entry = {
-            "ID": str(uuid.uuid4()).upper(),
-            "role": "assistant",
-            "content": response,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-        }
+        assistant_entry = create_assistant_entry(response)
 
         dialog.append(assistant_entry)
         doc_ref.update({"dialog": dialog})
@@ -562,12 +550,7 @@ def receive_and_send(request):
     if moderation_flags:
         if set(moderation_flags) & set(moderation_self_harm_categories):
             response = self_harm_responses[lang]
-            assistant_entry = {
-                "ID": str(uuid.uuid4()).upper(),
-                "role": "assistant",
-                "content": response,
-                "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-            }
+            assistant_entry = create_assistant_entry(response)
 
             dialog.append(assistant_entry)
             doc_ref.update({"dialog": dialog})
@@ -575,12 +558,7 @@ def receive_and_send(request):
         
         else: 
             response = flagged_content_responses[lang]
-            assistant_entry = {
-                "ID": str(uuid.uuid4()).upper(),
-                "role": "assistant",
-                "content": response,
-                "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-            }
+            assistant_entry = create_assistant_entry(response)
 
             dialog.append(assistant_entry)
             doc_ref.update({"dialog": dialog})
@@ -601,12 +579,7 @@ def receive_and_send(request):
     if knn_search(content_embedding, escalation_index, 1, p_human_escalation):
         # We are certain they want to speak to human
         response = hard_escalate_responses[lang]
-        assistant_entry = {
-            "ID": str(uuid.uuid4()).upper(),
-            "role": "assistant",
-            "content": response,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-        }
+        assistant_entry = create_assistant_entry(response)
 
 
         thread.extend([user_entry, assistant_entry])
@@ -627,59 +600,45 @@ def receive_and_send(request):
     
     optimised_query_embedding = generate_embedding(optimised_query)
     search_indices = knn_search(optimised_query_embedding, info_index, k, p_cosine_min)
+    search_results = info_df.loc[search_indices, f'information_{lang}'].tolist()
 
 
-    # First we check if the optimised query is far from all the information vectors
-    # REMOVE change to dynamic approach because current approach prevents discussions on weather etc
-    if not search_indices:
-        response = not_understood_responses[lang]
-        assistant_entry = {
-            "ID": str(uuid.uuid4()).upper(),
-            "role": "assistant",
-            "content": response,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-        }
+    response = gpt_responder(search_results, updated_summary, assistant_msg_content, user_msg_content, lang)
 
+    # Did the GPT deem it a banned topic?
+    if response == "BANNED_94736":
+        response = flagged_content_responses[lang]
+        assistant_entry = create_assistant_entry(response)
         dialog.append(assistant_entry)
-        doc_ref.update(
-            {
-            "dialog": dialog,
-            "context.thread": thread
-            }
-        )
+        # Add to dialog array but not thread. Don't update summary.
+        doc_ref.update({"dialog": dialog})
         return "", 200
-    
 
-    # Write new summary to database
-    doc_ref.update({"context.summary": updated_summary})
+    
+    elif response == "UNKNOWN_45783":
+        response = not_understood_responses[lang]
+        assistant_entry = create_assistant_entry(response)
+        dialog.append(assistant_entry)
+        # Add to dialog array but not thread. Don't update summary.
+        doc_ref.update({"dialog": dialog})
+        return "", 200
 
     # Clear the thread if topic has changed
     if topic_shift:
         thread = []
-        doc_ref.update({
-            "context.thread": [],
-            "escalate": False
-        })
 
-    
-    search_results = info_df.loc[search_indices, f'information_{lang}'].tolist()
-
-    response = gpt_responder(search_results, updated_summary, assistant_msg_content, user_msg_content, lang)
-    assistant_entry = {
-        "ID": str(uuid.uuid4()).upper(),
-        "role": "assistant",
-        "content": response,
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-    }
-
+    # Now message has passed all checks and response has been generated
+    assistant_entry = create_assistant_entry(response)
 
     thread.extend([user_entry, assistant_entry])
     dialog.append(assistant_entry)
 
+    
     doc_ref.update(
         {
-        "dialog": dialog,
-        "context.thread": thread
+            "dialog": dialog,
+            "context.thread": thread,
+            "context.summary": updated_summary,
         }
     )
     return "", 200
