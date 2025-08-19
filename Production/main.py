@@ -16,6 +16,9 @@ import requests
 from io import BytesIO
 import re
 
+# FOR LOGGING
+from time import time
+
 logging.basicConfig(level=logging.INFO)
 
 # Initialise Firebase if not already
@@ -117,7 +120,7 @@ info_index = faiss.IndexFlatIP(info_dim)
 info_index.add(info_matrix)
 
 # Generate FAISS index of human_escalation trigger embeddings
-escalation_dim = info_matrix.shape[1]
+escalation_dim = human_escalation_matrix.shape[1]
 escalation_index = faiss.IndexFlatIP(escalation_dim)
 escalation_index.add(human_escalation_matrix)
 
@@ -135,6 +138,7 @@ def attachment_handler(message):
     """
 
     attachment = message.get('attachment', None)
+
 
     if not attachment:
         return None, message.get('content')
@@ -410,35 +414,19 @@ def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
     (str) generated GPT response
     """
 
-    context = '\n\n'.join(information_array)
+    context = '\n\n'.join(information_array) or "No supporting information was found."
 
-    messages = [
-            {"role": "system", "content": generate_response_prompt.format(lang_code=lang, permitted_topics=" ,".join(s.lower() for s in permitted_topics), banned_topics=" ,".join(s.lower() for s in banned_topics))},
-
-            # Conversation summary injected as a user message
-            {
-                "role": "user",
-                "content": f"Conversation summary:\n{summary}"
-            },
-
-            # Retrieved context for grounding
-            {
-                "role": "user",
-                "content": f"Retrieved context:\n{context}"
-            },
-
-            # Previous messages, in correct order
-            {"role": "assistant", "content": assistant_msg},
-            {"role": "user", "content": user_msg}
-    ]
-
-    logging.info(f"GPT INPUT IS: {messages}")
-
-    # CHANGE THIS BACK TO BEFORE JUST USE FOR LOGGING
+    permitted_topics_str = ", ".join(s.lower() for s in permitted_topics)
+    banned_topics_str = ", ".join(s.lower() for s in banned_topics)
 
     response = openai_client.chat.completions.create(
         model=assistant_model,
-        messages = messages
+        messages = [
+                {"role": "system", "content": generate_response_prompt.format(lang_code=lang, summary=summary, information=context, permitted_topics=permitted_topics_str, banned_topics=banned_topics_str,)},
+                # Previous messages, in correct order
+                {"role": "assistant", "content": assistant_msg},
+                {"role": "user", "content": user_msg}
+        ]
     ).choices[0].message.content
 
     return response
@@ -470,8 +458,9 @@ def receive_and_send(request):
             400,
             {**CORS_HEADERS, "Content-Type": "application/json"},
         )
-    
 
+
+    
     # Get all relevant info from database
     doc_ref = db_olivia.collection("conversations").document(doc_id)
     snapshot = doc_ref.get()
@@ -480,6 +469,8 @@ def receive_and_send(request):
         doc_dict = snapshot.to_dict()
     else:
         logging.error(f"Unable to find conversation document, ID: {doc_id}")
+        return json.dumps({"error": f"Conversation document not found: {doc_id}"}), 404
+
 
     meta = doc_dict["meta"]
 
@@ -509,8 +500,9 @@ def receive_and_send(request):
     assistant_msg_content = assistant_msg["content"] if assistant_msg else ""
 
 
+    t0 = time()
     user_msg_attachment, user_msg_content = attachment_handler(user_msg)
-
+    logging.info(f"[{doc_id}] Attachment handled in {time() - t0:.3f}s")
 
 
     if user_msg_attachment == "unsupported":
@@ -532,7 +524,7 @@ def receive_and_send(request):
         doc_ref.update({"dialog": dialog})
         return "", 200
 
-
+    t0 = time()
     greeting, greeting_lang = is_msg_greeting(user_msg_content)
     if greeting:
         response = greeting_responses[greeting_lang]
@@ -540,12 +532,18 @@ def receive_and_send(request):
 
         dialog.append(assistant_entry)
         doc_ref.update({"dialog": dialog})
+        logging.info(f"[{doc_id}] Greeting detected and responded in {time() - t0:.3f}s")
         return "", 200
     
 
+    t0 = time()
     lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
+    logging.info(f"[{doc_id}] Language detection completed in {time() - t0:.3f}s")
 
+    t0 = time()
     moderation_flags = moderate_message(user_msg_content)
+    logging.info(f"[{doc_id}] Moderation completed in {time() - t0:.3f}s")
+
 
     if moderation_flags:
         if set(moderation_flags) & set(moderation_self_harm_categories):
@@ -573,9 +571,11 @@ def receive_and_send(request):
         "timestamp": user_msg["timestamp"]
     }
 
+    t0 = time()
     content_embedding = generate_embedding(user_msg_content)
+    logging.info(f"[{doc_id}] Embedding vector completed in {time() - t0:.3f}s")
 
-
+    t0 = time()
     if knn_search(content_embedding, escalation_index, 1, p_human_escalation):
         # We are certain they want to speak to human
         response = hard_escalate_responses[lang]
@@ -592,18 +592,27 @@ def receive_and_send(request):
             "escalate": True
             }
         )
+        logging.info(f"[{doc_id}] Human escalation check returned true in {time() - t0:.3f}s")
         return "", 200
+    logging.info(f"[{doc_id}] Human escalation check returned false in {time() - t0:.3f}s")
 
     
 
+    t0 = time()
     updated_summary, optimised_query, topic_shift = rewrite_query_update_summary(user_msg_content, dialog, summary)
-    
+    logging.info(f"[{doc_id}] Summary and query rewrite completed in {time() - t0:.3f}s")
+
+
+    t0 = time()
     optimised_query_embedding = generate_embedding(optimised_query)
     search_indices = knn_search(optimised_query_embedding, info_index, k, p_cosine_min)
     search_results = info_df.loc[search_indices, f'information_{lang}'].tolist()
+    logging.info(f"[{doc_id}] Info retrieval took {time() - t0:.3f}s")
 
 
+    t0 = time()
     response = gpt_responder(search_results, updated_summary, assistant_msg_content, user_msg_content, lang)
+    logging.info(f"[{doc_id}] GPT response generation took {time() - t0:.3f}s")
 
     # Did the GPT deem it a banned topic?
     if response == "BANNED_94736":
