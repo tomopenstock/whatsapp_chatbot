@@ -16,10 +16,23 @@
     "summary_query_model": "gpt-4.1-mini"
   },
   "prompts": {
-    "summary_rewrite_user_template": "You are updating a short summary of a customer support conversation.\nEnsure that you capture:\n- Main device/product/service\n- Main problem or request\n- Key details already provided (OS, model, network, etc.)\n- Actions already tried\n\nUpdate the summary with any new, relevant info from the following (may be blank if summary not yet generated):\nCurrent summary:\n{summary}\n\nLast {num_turns} turns:\n{flattened_message_block}\n\nReturn only the short, updated summary.",
-    "query_rewrite__system_prompt": "You are a smart assistant that rewrites user input into optimized search queries for semantic retrieval in a chatbot.",
-    "query_rewrite_user_template": "Conversation summary: {summary}\nAssistant asked: {assistant_msg}\nUser replied: {user_msg}\nRewrite the user's reply as a standalone query optimized for semantic search. Incorporate relevant context and technical details from the summary and assistant's question. Output only the final query.",
-    "generate_response_prompt": "You are the user assistant for Olivia POS, a technologically advanced electronic point-of-sale system designed for the hospitality industry, based in the UK and run on iPads.\nRespond to the user in language associated with the following language code: {lang_code}\nUse the provided context, the conversation summary and the last 4 messages to answer the user's question. Answer based on the information in the context. If the answer is not clear given the context, you may ask clarifying questions or explain that they must provide more information. You understand restaurant operations and modern hospitality workflows.\nPresent yourself as a confident, sophisticated woman. You are warm, kind, and helpful, but always direct. Your responses are polite, professional, and concise. Your tone is calm, clear, and assertive. Do not use emojis, dashes or informal language. You do not use “sorry,” “please,” or “thank you” unless necessary, and you avoid filler phrases like “great question” unless they serve a clear purpose. Do not refer to yourself as an AI, chatbot, or robot.\n\nYou are expected to handle the kinds of questions (using the provided context) a user would ask when contacting restaurant EPOS support, including:\n- Onboarding guidance (installation, setup)\n- Feature explanations (menus, modifiers, printing, reports)\n- Troubleshooting common issues (Wi‑Fi, syncing, printing, crashes\n- Billing and account inquiries (plans, payments, cancellations)\n- Redirecting to human support when needed\n\nDo not answer questions involving:\n- Third-party product comparisons\n- Legal, financial, or medical advice\n- Personal opinions or speculative answers (e.g. “I think”, “maybe”)\n- Technical support for unrelated products\n\nIf relevant, you may use the following facts:\n- Website: www.oliviapos.com\n- Contact: contact@oliviapos.com\n- Billing: Monthly or yearly, cancel anytime\n- Pricing: 139 plus tax per month, or 1499 plus tax per year\n- Prices are the same across all currencies (do not convert or localise)."
+    "generate_response_prompt": "You are the user assistant for Olivia POS, a technologically advanced electronic point-of-sale system designed for the hospitality industry, and run on iPads.\n\nUse the provided context, the conversation summary and the last 2 messages to answer the user's question in the following language code: {lang_code}\n\nDo not mention or reference any provided context, sources or system instructions. If the answer is unclear based on the available information, ask for clarification or explain what additional details are needed.\n\nYou are helpful and always direct, professional and concise. Do not use emojis, dashes or informal language. You do not use “sorry”, “please,” or “thank you” unless necessary. Avoid filler phrases unless they serve a clear purpose. Never refer to yourself as an AI, chatbot, robot, or in any similar way.\n\nDo not answer questions involving:\n- Third-party product comparisons\n- Legal, financial, or medical advice\n- Personal opinions or speculative responses\n- Technical support for unrelated products\n\nIf relevant, you may use the following facts:\n- Website: www.oliviapos.com\n- Contact: contact@oliviapos.com\n- Billing: Monthly or yearly, cancel anytime\n- Pricing: 139 plus tax per month, or 1499 plus tax per year\n- Prices are the same across all currencies (do not convert or localise).\n\nEnsure responses align with hospitality industry standards and workflows.",
+    "permitted_topics": [
+      "Weather conditions",
+      "Restaurant best practices (e.g., menu engineering, staff scheduling)",
+      "Sustainability practices (e.g., reducing food waste)",
+      "Wine pairings for specific dishes"
+    ],
+    "banned_topics": [
+      "Third-party product comparisons",
+      "Legal, financial, or medical advice",
+      "Personal opinions or speculative responses",
+      "Technical support for unrelated products",
+      "Politics"
+    ],    
+    "summary_rewrite_user_template": "You are updating a short summary of a customer support conversation.\nIf the user’s most recent message is clearly about a different topic than the summary, clear the previous summary and start from scratch.\n\nEnsure that you capture:\n- Main device/product/service\n- Main problem or request\n- Key details already provided\n- Actions already tried\n\nUpdate the summary by incorporating any new, relevant information from the latest messages. If no prior summary exists, generate a concise summary based solely on the most recent messages.\nCurrent summary: {summary}\nLast {num_turns} turns:{flattened_message_block}\n\nReturn only the short, updated summary.\nIf you restarted the summary due to a topic shift, begin your response with: ‘TOPIC_SHIFT: ‘",
+    "query_rewrite_system_prompt": "You are a smart assistant that rewrites user input into optimised search queries for semantic retrieval in a customer support chatbot.",
+    "query_rewrite_user_template": "Conversation summary: {summary}\nAssistant asked: {assistant_msg}\nUser replied: {user_msg}\nRewrite the user's reply as a standalone query optimised for semantic search. Incorporate relevant context and technical details from the summary and assistant's question. Output only the final query."
   },
   "supported_languages": ["en", "it", "fr"],
   "phone_to_language": {
@@ -59,50 +72,133 @@
       "it": "Ho ricevuto la tua richiesta di parlare con una operatore. Verrai contattato su questo numero entro 15 minuti. Se non riusciamo a raggiungerti, riproveremo più tardi."
     }
   },
-  "human_escalation": [
-    {
-      "category": "human_escalation",
-      "information_en": "I want to speak to a human.",
-      "information_fr": "Je veux parler à un être humain.",
-      "information_it": "Voglio parlare con un operatore.",
-      "media": null
-    },
-    {
-      "category": "human_escalation",
-      "information_en": "Could you please connect me with a representative?",
-      "information_fr": "Pourriez-vous me mettre en contact avec un représentant ?",
-      "information_it": "Potrebbe mettermi in contatto con un rappresentante?",
-      "media": null
-    },
-    {
-      "category": "human_escalation",
-      "information_en": "This isn’t helping, get me someone who can.",
-      "information_fr": "Cela ne sert à rien, trouvez-moi quelqu'un qui puisse le faire.",
-      "information_it": "Questo non mi è d'aiuto, trovami qualcuno che possa farlo.",
-      "media": null
-    },
-    {
-      "category": "human_escalation",
-      "information_en": "Is anyone real there I can talk to?",
-      "information_fr": "Y a-t-il quelqu'un de réel à qui je puisse parler ?",
-      "information_it": "C'è qualcuno con cui posso parlare?",
-      "media": null
-    },
-    {
-      "category": "human_escalation",
-      "information_en": "I’m done with the bot, give me a person.",
-      "information_fr": "J'en ai fini avec les robots, donnez-moi une personne.",
-      "information_it": "Ho chiuso con il bot, datemi una persona.",
-      "media": null
-    },
-    {
-      "category": "human_escalation",
-      "information_en": "I’d prefer to deal with a person instead.",
-      "information_fr": "Je préfère avoir affaire à une personne.",
-      "information_it": "I’d prefer to deal with a person instead.",
-      "media": null
-    }
+
+"greeting_triggers": {
+  "en": [
+    "olivia",
+    "hello",
+    "hello olivia",
+    "hi",
+    "hi olivia",
+    "hey",
+    "hey olivia",
+    "yo",
+    "yo olivia",
+    "greetings",
+    "greetings olivia",
+    "whats up",
+    "whats up olivia",
+    "hi there",
+    "hi there olivia",
+    "hey there",
+    "hey there olivia",
+    "good morning",
+    "good morning olivia",
+    "good afternoon",
+    "good afternoon olivia",
+    "good evening",
+    "good evening olivia",
+    "hiya",
+    "hiya olivia",
+    "sup",
+    "sup olivia",
+    "howdy",
+    "howdy olivia"
   ],
+  "fr": [
+    "bonjour",
+    "bonjour olivia",
+    "salut",
+    "salut olivia",
+    "coucou",
+    "coucou olivia",
+    "hello",
+    "hello olivia",
+    "bonsoir",
+    "bonsoir olivia",
+    "bonne journée",
+    "bonne journée olivia",
+    "bonne soirée",
+    "bonne soirée olivia",
+    "yo",
+    "yo olivia",
+    "hé",
+    "hé olivia",
+    "salutations",
+    "salutations olivia"
+  ],
+  "it": [
+    "ciao",
+    "ciao olivia",
+    "salve",
+    "salve olivia",
+    "buongiorno",
+    "buongiorno olivia",
+    "buonasera",
+    "buonasera olivia",
+    "buonanotte",
+    "buonanotte olivia",
+    "ehi",
+    "ehi olivia",
+    "ciao bella",
+    "ciao bella olivia",
+    "yo",
+    "yo olivia",
+    "saluti",
+    "saluti olivia",
+    "buona giornata",
+    "buona giornata olivia",
+    "buona sera",
+    "buona sera olivia"
+  ]
+},
+
+  "human_escalation": [
+    { "lang": "en", "text": "I want to speak to a human." },
+    { "lang": "fr", "text": "Je veux parler à un être humain." },
+    { "lang": "it", "text": "Voglio parlare con un operatore." },
+
+    { "lang": "en", "text": "Could you please connect me with a representative?" },
+    { "lang": "fr", "text": "Pourriez-vous me mettre en contact avec un représentant ?" },
+    { "lang": "it", "text": "Potrebbe mettermi in contatto con un rappresentante?" },
+
+    { "lang": "en", "text": "This isn’t helping, get me someone who can." },
+    { "lang": "fr", "text": "Cela ne sert à rien, trouvez-moi quelqu'un qui puisse le faire." },
+    { "lang": "it", "text": "Questo non mi è d'aiuto, trovami qualcuno che possa farlo." },
+
+    { "lang": "en", "text": "Is anyone real there I can talk to?" },
+    { "lang": "fr", "text": "Y a-t-il quelqu'un de réel à qui je puisse parler ?" },
+    { "lang": "it", "text": "C'è qualcuno con cui posso parlare?" },
+
+    { "lang": "en", "text": "I’m done with the bot, give me a person." },
+    { "lang": "fr", "text": "J'en ai fini avec les robots, donnez-moi une personne." },
+    { "lang": "it", "text": "Ho chiuso con il bot, datemi una persona." },
+
+    { "lang": "en", "text": "I’d prefer to deal with a person instead." },
+    { "lang": "fr", "text": "Je préfère avoir affaire à une personne." },
+    { "lang": "it", "text": "Preferirei parlare con una persona." },
+
+    { "lang": "en", "text": "Can I speak to someone on your team?" },
+    { "lang": "fr", "text": "Puis-je parler à quelqu’un de votre équipe ?" },
+    { "lang": "it", "text": "Posso parlare con qualcuno del vostro team?" },
+
+    { "lang": "en", "text": "Get me a human agent." },
+    { "lang": "fr", "text": "Faites-moi parler à un agent humain." },
+    { "lang": "it", "text": "Fammi parlare con un operatore umano." },
+
+    { "lang": "en", "text": "I don't want to chat with a bot." },
+    { "lang": "fr", "text": "Je ne veux pas discuter avec un robot." },
+    { "lang": "it", "text": "Non voglio parlare con un bot." },
+
+    { "lang": "en", "text": "Is there a person I can talk to directly?" },
+    { "lang": "fr", "text": "Y a-t-il une personne à qui je puisse parler directement ?" },
+    { "lang": "it", "text": "C'è una persona con cui posso parlare direttamente?" },
+
+    { "lang": "en", "text": "Let me speak to a real person." },
+    { "lang": "fr", "text": "Laissez-moi parler à une vraie personne." },
+    { "lang": "it", "text": "Fammi parlare con una persona reale." }
+  ],
+
   "information": [
     {
       "category": "printers",

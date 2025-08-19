@@ -14,6 +14,7 @@ from google.cloud import translate
 import uuid
 import requests
 from io import BytesIO
+import re
 
 logging.basicConfig(level=logging.INFO)
 
@@ -60,7 +61,7 @@ hyperparams = data["hyperparams"]
 k = hyperparams["k"] # Number of nearest neighbours to retrieve
 p_cosine_min = hyperparams["p_cosine_min"] # cosine similarity threshold
 p_audio = hyperparams["p_audio"] # minimum threshold for average probability per token transcribed
-p_langdetect = hyperparams["p_langdetect"] # minimum threshold for probability of language detected
+p_langdetect = hyperparams["p_lang_detect"] # minimum threshold for probability of language detected
 p_human_escalation = hyperparams["p_human_escalation"] # minimum threshold for cosine similarity to escalate to human support
 restart_summary_every = hyperparams["restart_summary_every"] # summary rewritten from entire thread at these regular intervals
 
@@ -69,10 +70,10 @@ restart_summary_every = hyperparams["restart_summary_every"] # summary rewritten
 prompts = data["prompts"]
 
 generate_response_prompt = prompts["generate_response_prompt"]
-summary_rewrite_template = prompts["summary_rewrite_template"]
-query_rewrite__system_prompt = prompts["query_rewrite__system_prompt"]
+permitted_topics = prompts["permitted_topics"]
+summary_rewrite_template = prompts["summary_rewrite_user_template"]
+query_rewrite_system_prompt = prompts["query_rewrite_system_prompt"]
 query_rewrite_user_template = prompts["query_rewrite_user_template"]
-
 
 
 info_df = pd.DataFrame(data["information"])
@@ -94,6 +95,8 @@ self_harm_responses = preset_responses["self_harm_responses"]
 unsupported_media_responses = preset_responses["unsupported_media_responses"]
 hard_escalate_responses = preset_responses["hard_escalate_responses"]
 
+
+greeting_triggers = data["greeting_triggers"]
 
 
 openai_client = openai.OpenAI(api_key = access_secret("OPENAI_API_KEY"))
@@ -120,28 +123,14 @@ escalation_index.add(human_escalation_matrix)
 
 
 
-# INITIAL PROMPT
+
 
 fallback_lines = "\n".join(
     f"- {lang_code}: {not_understood_responses[lang_code]}"
     for lang_code in supported_languages
 )
 
-
-# Generate initial prompt for the GPT
-initial_prompt = f"""You are a user assistant for Olivia, a restaurant POS software.
-
-Read the user's question and, using only the information provided, answer in the user's input language.
-
-If the language is not French or Italian, respond in English.
-
-If the user clearly asks about a specific piece of information that has been provided, return that piece of information word for word.
-
-Do not mention or reference any provided information or sources.
-
-If the question cannot be answered based on the provided information, reply with one of the following messages, based on the user's language:
-{fallback_lines}
-""" # CHANGE THIS PROMPT CHANGE THIS PROMPT
+generate_response_prompt += f"\n\nIf the question cannot be answered based on the provided information, reply with one of the following messages, based on the user's language: {fallback_lines}"
 
 
 
@@ -193,6 +182,15 @@ def attachment_handler(message):
 
 
 
+def is_msg_greeting(message):
+    cleaned_message = re.sub(r"[^\w\s]", "", message.lower().strip())
+    
+    for greeting_lang in supported_languages:
+        if cleaned_message in greeting_triggers.get(greeting_lang, []):
+            # We have detected a greeting
+            return True, greeting_lang
+
+    return False, None
 
 
 def detect_set_lang(user_content, db_lang, db_phone, doc_ref):
@@ -332,7 +330,7 @@ def knn_search(embedding, index, k, p_cosine_min):
 
 
 
-def rewrite_query_update_summary(user_content, thread, summary, doc_ref):
+def rewrite_query_update_summary(user_content, thread, summary):
     """
     Inputs
     user_query (str)
@@ -349,9 +347,9 @@ def rewrite_query_update_summary(user_content, thread, summary, doc_ref):
     if not summary:
         summary = ""
 
-    # At regular intervals rewrite summary from whole thread to avoid drift
+    # At regular intervals rewrite summary from last 10
     if len(thread) % restart_summary_every == 0:
-        convo = thread 
+        convo = thread[-10:]
     else:
         convo = thread[-3:]
     
@@ -373,10 +371,13 @@ def rewrite_query_update_summary(user_content, thread, summary, doc_ref):
                 "content": final_summary_prompt
             }
         ]
-    ).choices[0].message.content
+    ).choices[0].message.content.strip()
 
-    # Write new summary to database
-    doc_ref.update({"context.summary": updated_summary})
+    if updated_summary.startswith("TOPIC_SHIFT:"):
+        topic_shift = True
+        updated_summary = updated_summary.replace("TOPIC_SHIFT:", "", 1).strip()
+    else:
+        topic_shift = False
 
     assistant_msg = next((m["content"] for m in reversed(convo) if m["role"] == "assistant"), "")
 
@@ -386,12 +387,14 @@ def rewrite_query_update_summary(user_content, thread, summary, doc_ref):
         user_msg=user_content
     )
 
+
+    #POSSIBLY ONLY INCLUDE THE ASSISTANT MESSAGE IF THERE WAS NO TOPIC SHIFT
     optimised_query = openai_client.chat.completions.create(
         model=summary_query_model,
         messages= [
             {
                 "role": "system",
-                "content": query_rewrite__system_prompt
+                "content": query_rewrite_system_prompt
             },
             {
                 "role": "user",
@@ -400,7 +403,9 @@ def rewrite_query_update_summary(user_content, thread, summary, doc_ref):
         ]
     ).choices[0].message.content
 
-    return updated_summary, optimised_query
+    logging.info(f"User query optimised for retrieval: {optimised_query}")
+
+    return updated_summary, optimised_query, topic_shift
 
 
 
@@ -426,15 +431,14 @@ def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
             # Conversation summary injected as a user message
             {
                 "role": "user",
-                "content": f"Conversation summary so far:\n{summary}"
+                "content": f"Conversation summary:\n{summary}"
             },
 
             # Retrieved context for grounding
             {
                 "role": "user",
-                "content": f"Relevant knowledge (context):\n{context}"
+                "content": f"Retrieved context:\n{context}"
             },
-
 
             # Previous messages, in correct order
             {"role": "assistant", "content": assistant_msg},
@@ -466,7 +470,6 @@ def receive_and_send(request):
     
 
     # Get all relevant info from database
-
     doc_ref = db_olivia.collection("conversations").document(doc_id)
     snapshot = doc_ref.get()
 
@@ -498,61 +501,185 @@ def receive_and_send(request):
     user_msg_ID = user_msg["ID"]
     user_msg_content = user_msg["content"]
 
-
+    # And assistant message
     assistant_msg = next((d for d in reversed(dialog) if d.get('role') == 'assistant'), None)
     assistant_msg_content = assistant_msg["content"] if assistant_msg else ""
 
 
-    # And assistant message
-
-
     user_msg_attachment, user_msg_content = attachment_handler(user_msg)
 
-    lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
+
 
     if user_msg_attachment == "unsupported":
+        lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
         response = unsupported_media_responses[lang]
-        # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+        assistant_entry = {
+            "ID": str(uuid.uuid4()).upper(),
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        }
+
+        dialog.append(assistant_entry)
+        doc_ref.update({"dialog": dialog})
+        return "", 200
+
 
     if not user_msg_content:
+        lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
         response = not_understood_responses[lang]
-        # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+        assistant_entry = {
+            "ID": str(uuid.uuid4()).upper(),
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        }
+
+        dialog.append(assistant_entry)
+        doc_ref.update({"dialog": dialog})
+        return "", 200
+
+
+    greeting, greeting_lang = is_msg_greeting(user_msg_content)
+    if greeting:
+        response = greeting_responses[greeting_lang]
+        assistant_entry = {
+            "ID": str(uuid.uuid4()).upper(),
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        }
+
+        dialog.append(assistant_entry)
+        doc_ref.update({"dialog": dialog})
+        return "", 200
     
+
+    lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
 
     moderation_flags = moderate_message(user_msg_content)
 
     if moderation_flags:
         if set(moderation_flags) & set(moderation_self_harm_categories):
             response = self_harm_responses[lang]
-            # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+            assistant_entry = {
+                "ID": str(uuid.uuid4()).upper(),
+                "role": "assistant",
+                "content": response,
+                "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+            }
+
+            dialog.append(assistant_entry)
+            doc_ref.update({"dialog": dialog})
+            return "", 200
         
         else: 
             response = flagged_content_responses[lang]
-            # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+            assistant_entry = {
+                "ID": str(uuid.uuid4()).upper(),
+                "role": "assistant",
+                "content": response,
+                "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+            }
+
+            dialog.append(assistant_entry)
+            doc_ref.update({"dialog": dialog})
+            return "", 200
 
 
-    # HERE WE MUST CALL FUNCTION THAT CHECKS FOR SEMANTIC SHIFT IN CONVERSATION.
 
+    user_entry = {
+        "ID": user_msg_ID,
+        "role": "user",
+        "content": user_msg_content,
+        "timestamp": user_msg["timestamp"]
+    }
 
     content_embedding = generate_embedding(user_msg_content)
 
-    if knn_search(content_embedding, escalation_index, 1, p_cosine_min):
+
+    if knn_search(content_embedding, escalation_index, 1, p_human_escalation):
+        # We are certain they want to speak to human
         response = hard_escalate_responses[lang]
-        # SEND RESPONSE TO FIRESTORE DIALOG AND WRITE TO THREAD WITH USER INPUT
-        # SET ESCALATE TO TRUE
+        assistant_entry = {
+            "ID": str(uuid.uuid4()).upper(),
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        }
+
+
+        thread.extend([user_entry, assistant_entry])
+        dialog.append(assistant_entry)
+
+        doc_ref.update(
+            {
+            "dialog": dialog,
+            "context.thread": thread,
+            "escalate": True
+            }
+        )
+        return "", 200
+
     
 
-    updated_summary, optimised_query = rewrite_query_update_summary(user_msg_content, dialog, summary, doc_ref)
+    updated_summary, optimised_query, topic_shift = rewrite_query_update_summary(user_msg_content, dialog, summary)
     
     optimised_query_embedding = generate_embedding(optimised_query)
     search_indices = knn_search(optimised_query_embedding, info_index, k, p_cosine_min)
 
+
+    # First we check if the optimised query is far from all the information vectors
+    # REMOVE change to dynamic approach because current approach prevents discussions on weather etc
     if not search_indices:
         response = not_understood_responses[lang]
-        # SEND RESPONSE TO FIRESTORE DIALOG (LEAVE OUT OF THREAD)
+        assistant_entry = {
+            "ID": str(uuid.uuid4()).upper(),
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        }
+
+        dialog.append(assistant_entry)
+        doc_ref.update(
+            {
+            "dialog": dialog,
+            "context.thread": thread
+            }
+        )
+        return "", 200
+    
+
+    # Write new summary to database
+    doc_ref.update({"context.summary": updated_summary})
+
+    # Clear the thread if topic has changed
+    if topic_shift:
+        thread = []
+        doc_ref.update({
+            "context.thread": [],
+            "escalate": False
+        })
+
     
     search_results = info_df.loc[search_indices, f'information_{lang}'].tolist()
 
     response = gpt_responder(search_results, updated_summary, assistant_msg_content, user_msg_content, lang)
-    # SEND RESPONSE TO FIRESTORE DIALOG AND WRITE THE ASSISTANT AND USER MESSAGE TO THREAD
+    assistant_entry = {
+        "ID": str(uuid.uuid4()).upper(),
+        "role": "assistant",
+        "content": response,
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+    }
 
+
+    thread.extend([user_entry, assistant_entry])
+    dialog.append(assistant_entry)
+
+    doc_ref.update(
+        {
+        "dialog": dialog,
+        "context.thread": thread
+        }
+    )
+    return "", 200
