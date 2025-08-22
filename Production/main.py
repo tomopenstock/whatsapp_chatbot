@@ -91,6 +91,7 @@ preset_responses = data["preset_responses"]
 
 greeting_responses = preset_responses["greeting_responses"]
 gratitude_responses = preset_responses["gratitude_responses"]
+resolved_responses = preset_responses["resolved_responses"]
 not_understood_responses = preset_responses["not_understood_responses"]
 flagged_content_responses = preset_responses["flagged_content_responses"]
 self_harm_responses = preset_responses["self_harm_responses"]
@@ -336,21 +337,14 @@ def knn_search(embedding, index, k, p_cosine_min):
 
 
 
-
-
-
-
 def rewrite_query_update_summary(user_content, thread, summary):
     """
     Inputs
     user_query (str)
     thread (array): array of dicts (could be empty array)
     summary (str): string generated conversation summary
-    doc_ref (google.cloud.firestore_v1.document.DocumentReference): for updating the Firestore with summary
 
     Returns
-    
-
     Also updates Firestore with new summary
     """
 
@@ -359,12 +353,14 @@ def rewrite_query_update_summary(user_content, thread, summary):
 
     # At regular intervals rewrite summary from last 10
     if len(thread) % restart_summary_every == 0:
-        convo = thread[-10:]
+        base = thread[-10:]
     else:
-        convo = thread[-3:]
+        base = thread[-3:]
+
+    convo_plus = base + [{"role": "user", "content": user_content}]
     
-    num_turns = len(convo)
-    convo_flattened = "\n".join([f"{m['role']}: {m['content']}" for m in convo])
+    num_turns = len(convo_plus)
+    convo_flattened = "\n".join([f"{m['role']}: {m['content']}" for m in convo_plus])
 
     final_summary_prompt = summary_rewrite_template.format(
         summary=summary,
@@ -380,16 +376,19 @@ def rewrite_query_update_summary(user_content, thread, summary):
                 "role": "user",
                 "content": final_summary_prompt
             }
-        ]
+        ],
+        temperature=0,
+        top_p=1
     ).choices[0].message.content.strip()
 
     if updated_summary.startswith("TOPIC_SHIFT:"):
+        logging.info("Summariser GPT detected topic shift")
         topic_shift = True
         updated_summary = updated_summary.replace("TOPIC_SHIFT:", "", 1).strip()
     else:
         topic_shift = False
 
-    assistant_msg = next((m["content"] for m in reversed(convo) if m["role"] == "assistant"), "")
+    assistant_msg = next((m["content"] for m in reversed(base) if m["role"] == "assistant"), "")
 
     final_query_prompt = query_rewrite_user_template.format(
         summary=updated_summary,
@@ -409,7 +408,9 @@ def rewrite_query_update_summary(user_content, thread, summary):
                 "role": "user",
                 "content": final_query_prompt
             }
-        ]
+        ],
+        temperature=0,
+        top_p=1
     ).choices[0].message.content
 
     logging.info(f"User query optimised for retrieval: {optimised_query}")
@@ -434,8 +435,6 @@ def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
     permitted_topics_str = ", ".join(s.lower() for s in permitted_topics)
     banned_topics_str = ", ".join(s.lower() for s in banned_topics)
 
-    logging.info(generate_response_prompt.format(lang_code=lang, summary=summary, information=context, permitted_topics=permitted_topics_str, banned_topics=banned_topics_str))
-
     response = openai_client.chat.completions.create(
         model=assistant_model,
         messages = [
@@ -443,9 +442,12 @@ def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
                 # Previous messages, in correct order
                 {"role": "assistant", "content": assistant_msg},
                 {"role": "user", "content": user_msg}
-        ]
+        ],
+        temperature=0,
+        top_p=1
     ).choices[0].message.content
 
+    logging.info("GPT response generated")
     return response
 
 
@@ -556,7 +558,13 @@ def receive_and_send(request):
         assistant_entry = create_assistant_entry(response)
 
         dialog.append(assistant_entry)
-        doc_ref.update({"dialog": dialog})
+        doc_ref.update(
+            {
+                "dialog": dialog,
+                "context.thread": [],
+                "context.summary": None
+            }
+        )
         return "", 200
     
     # FINAL CHECK FOR IF INPUT IS JUST OLIVIA, IF SO CONTINUE TO DETECT LANGUAGE AND GIVE A GREETING RESPONSE
@@ -610,8 +618,8 @@ def receive_and_send(request):
         return "", 200
 
     
-
-    updated_summary, optimised_query, topic_shift = rewrite_query_update_summary(user_msg_content, dialog, summary)
+    # USED TO PASS DIALOG INSTEAD OF THREAD, CHECK BEFORE PUSHING
+    updated_summary, optimised_query, topic_shift = rewrite_query_update_summary(user_msg_content, thread, summary)
 
 
     optimised_query_embedding = generate_embedding(optimised_query)
@@ -623,20 +631,36 @@ def receive_and_send(request):
 
     # Did the GPT deem it a banned topic?
     if response == "BANNED_94736":
+        logging.info("GPT identified banned content")
         response = flagged_content_responses[lang]
         assistant_entry = create_assistant_entry(response)
         dialog.append(assistant_entry)
         # Add to dialog array but not thread. Don't update summary.
         doc_ref.update({"dialog": dialog})
         return "", 200
-
-    
+ 
     elif response == "UNKNOWN_45783":
+        logging.info("GPT identified irrelevant, or hard-to-understand content")
         response = not_understood_responses[lang]
         assistant_entry = create_assistant_entry(response)
         dialog.append(assistant_entry)
         # Add to dialog array but not thread. Don't update summary.
         doc_ref.update({"dialog": dialog})
+        return "", 200
+    
+    elif response == "RESOLVED_72859":
+        logging.info("GPT determined the issue resolved")
+        response = resolved_responses[lang]
+        assistant_entry = create_assistant_entry(response)
+        dialog.append(assistant_entry)
+        # Add to dialog array, clear thread and summary.
+        doc_ref.update(
+            {
+                "dialog": dialog,
+                "context.thread": [],
+                "context.summary": None
+            }
+        )
         return "", 200
 
 
