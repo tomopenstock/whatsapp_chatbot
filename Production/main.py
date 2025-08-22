@@ -434,10 +434,12 @@ def gpt_responder(information_array, summary, assistant_msg, user_msg, lang):
     permitted_topics_str = ", ".join(s.lower() for s in permitted_topics)
     banned_topics_str = ", ".join(s.lower() for s in banned_topics)
 
+    logging.info(generate_response_prompt.format(lang_code=lang, summary=summary, information=context, permitted_topics=permitted_topics_str, banned_topics=banned_topics_str))
+
     response = openai_client.chat.completions.create(
         model=assistant_model,
         messages = [
-                {"role": "system", "content": generate_response_prompt.format(lang_code=lang, summary=summary, information=context, permitted_topics=permitted_topics_str, banned_topics=banned_topics_str,)},
+                {"role": "system", "content": generate_response_prompt.format(lang_code=lang, summary=summary, information=context, permitted_topics=permitted_topics_str, banned_topics=banned_topics_str)},
                 # Previous messages, in correct order
                 {"role": "assistant", "content": assistant_msg},
                 {"role": "user", "content": user_msg}
@@ -596,15 +598,12 @@ def receive_and_send(request):
         # We are certain they want to speak to human
         response = hard_escalate_responses[lang]
         assistant_entry = create_assistant_entry(response)
-
-
-        thread.extend([user_entry, assistant_entry])
+        
         dialog.append(assistant_entry)
 
         doc_ref.update(
             {
             "dialog": dialog,
-            "context.thread": thread,
             "escalate": True
             }
         )
@@ -640,6 +639,7 @@ def receive_and_send(request):
         doc_ref.update({"dialog": dialog})
         return "", 200
 
+
     # Clear the thread if topic has changed
     if topic_shift:
         thread = []
@@ -650,12 +650,16 @@ def receive_and_send(request):
     thread.extend([user_entry, assistant_entry])
     dialog.append(assistant_entry)
 
+    monitor_thread = False
+    if len(thread) == 8:
+        monitor_thread = True
     
     doc_ref.update(
         {
             "dialog": dialog,
             "context.thread": thread,
             "context.summary": updated_summary,
+            "monitor_thread": monitor_thread
         }
     )
     return "", 200
