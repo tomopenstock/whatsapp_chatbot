@@ -90,6 +90,7 @@ phone_to_language = data["phone_to_language"]
 preset_responses = data["preset_responses"]
 
 greeting_responses = preset_responses["greeting_responses"]
+gratitude_responses = preset_responses["gratitude_responses"]
 not_understood_responses = preset_responses["not_understood_responses"]
 flagged_content_responses = preset_responses["flagged_content_responses"]
 self_harm_responses = preset_responses["self_harm_responses"]
@@ -98,6 +99,7 @@ hard_escalate_responses = preset_responses["hard_escalate_responses"]
 
 
 greeting_triggers = data["greeting_triggers"]
+gratitude_triggers = data["gratitude_triggers"]
 
 
 openai_client = openai.OpenAI(api_key = access_secret("OPENAI_API_KEY"))
@@ -172,18 +174,34 @@ def attachment_handler(message):
     return 'audio', user_content
 
 
+def clean_message(message):
+    # Lowercase + trim
+    cleaned = message.lower().strip()
+    # Remove punctuation (everything except letters/numbers/whitespace)
+    cleaned = re.sub(r"[^\w\s]", "", cleaned)
+    # Remove the word 'olivia' wherever it appears
+    cleaned = re.sub(r"\bolivia\b", "", cleaned)
+    # Collapse multiple spaces into one + trim
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
 
-def is_msg_greeting(message):
-    cleaned_message = re.sub(r"[^\w\s]", "", message.lower().strip())
-    
-    for greeting_lang in supported_languages:
-        if cleaned_message in greeting_triggers.get(greeting_lang, []):
+
+def is_msg_greeting(cleaned_message):
+    for lang in supported_languages:
+        if cleaned_message in greeting_triggers.get(lang, []):
             # We have detected a greeting
-            return True, greeting_lang
+            return True, lang
 
     return False, None
 
+def is_msg_gratitude(cleaned_message):
+    for lang in supported_languages:
+        if cleaned_message in gratitude_triggers.get(lang, []):
+            # We have detected gratitude
 
+            return True, lang
+
+    return False, None
 
 def detect_set_lang(user_content, db_lang, db_phone, doc_ref):
     """
@@ -519,16 +537,27 @@ def receive_and_send(request):
         doc_ref.update({"dialog": dialog})
         return "", 200
 
+    cleaned_message = clean_message(user_msg_content)
 
-    greeting, greeting_lang = is_msg_greeting(user_msg_content)
+    greeting, lang = is_msg_greeting(cleaned_message)
     if greeting:
-        response = greeting_responses[greeting_lang]
+        response = greeting_responses[lang]
         assistant_entry = create_assistant_entry(response)
 
         dialog.append(assistant_entry)
         doc_ref.update({"dialog": dialog})
         return "", 200
     
+    gratitude, lang = is_msg_gratitude(cleaned_message)
+    if gratitude:
+        response = gratitude_responses[lang]
+        assistant_entry = create_assistant_entry(response)
+
+        dialog.append(assistant_entry)
+        doc_ref.update({"dialog": dialog})
+        return "", 200
+    
+    # FINAL CHECK FOR IF INPUT IS JUST OLIVIA, IF SO CONTINUE TO DETECT LANGUAGE AND GIVE A GREETING RESPONSE
 
     lang = detect_set_lang(user_msg_content, db_lang, db_phone, doc_ref)
 

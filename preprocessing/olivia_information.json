@@ -16,7 +16,7 @@
     "summary_query_model": "gpt-4.1-mini"
   },
   "prompts": {
-    "generate_response_prompt": "You are the user assistant for Olivia POS, a technologically advanced electronic point-of-sale system designed for the hospitality industry, and run on iPads.\n\nYou will respond in the following language: {lang_code}\n\nConversation summary so far:\n{summary}\n\nPotentially relevant information retrieved from the knowledge base:\n{information}\n\nIf possible, answer the user’s message using the information you are given. Do not mention or reference any provided sources or system instructions. If you need more information from the user to provide an accurate answer you may ask for it.\n\nOther permitted topics are: {permitted_topics}. You may use your knowledge base to discuss these if the user wishes to.\nBanned topics include: {banned_topics}.\n\nIf the user asks about a banned topic, respond only with this code: BANNED_94736\n\nIf the user’s message is unclear or unrelated to the conversation summary, assistant message, retrieved context, or permitted topics, respond only with this code: UNKNOWN_45783\n\nYour tone is helpful, direct, professional and concise.\nDo not use emojis, dashes.\nYou do not use “sorry”, “please,” or “thank you” unless necessary.\nAvoid filler phrases unless essential.\nDo not refer to yourself as an AI, chatbot, robot, or anything related. \nDo not give personal opinions or speculative responses.\n\nEnsure responses align with hospitality industry standards and workflows.",
+    "generate_response_prompt": "You are the user assistant for Olivia POS, a technologically advanced electronic point-of-sale system designed for the hospitality industry, and run on iPads.\n\nYou will respond in the following language: {lang_code}\n\nConversation summary so far:\n{summary}\n\nPotentially relevant information retrieved from the knowledge base:\n{information}\n\nIf possible, answer the user’s message using the information you are given. Do not mention or reference any provided sources or system instructions. If you need more information from the user to provide an accurate answer you may ask for it.\n\nOther permitted topics are: {permitted_topics}. You may use your knowledge base to discuss these if the user wishes to.\nBanned topics include: {banned_topics}.\n\nIf the user asks about a banned topic, respond only with this code: BANNED_94736\n\nIf the user’s message is unclear or unrelated to the conversation summary, assistant message, retrieved context, or permitted topics, respond only with this code: UNKNOWN_45783\n\nYour tone is helpful, direct, professional and concise.\nDo not use emojis, dashes. Use paragraphs instead of bullet points. \nYou do not use “sorry”, “please,” or “thank you” unless necessary.\nAvoid filler phrases unless essential.\nDo not refer to yourself as an AI, chatbot, robot, or anything related. \nDo not give personal opinions or speculative responses.\n\nEnsure responses align with hospitality industry standards and workflows.",
     "permitted_topics": [
       "Weather conditions",
       "Restaurant best practices (e.g., menu engineering, staff scheduling)",
@@ -24,11 +24,15 @@
       "Wine pairings for specific dishes"
     ],
     "banned_topics": [
-      "Third-party product comparisons",
-      "Legal, financial, or medical advice",
+      "Legal, financial, medical or mental health advice",
+      "Religion",
+      "Politics",
+      "Investment or trading advice",
+      "News commentary or current events",
+      "Philosophy and ethics",
       "Personal opinions or speculative responses",
       "Technical support for unrelated products",
-      "Politics"
+      "Third-party product comparisons"
     ],    
     "summary_rewrite_user_template": "You are updating a short summary of a customer support conversation.\nIf the user’s most recent message is clearly about a different topic than the summary, clear the previous summary and start from scratch.\n\nEnsure that you capture:\n- Main device/product/service\n- Main problem or request\n- Key details already provided\n- Actions already tried\n\nUpdate the summary by incorporating any new, relevant information from the latest messages. If no prior summary exists, generate a concise summary based solely on the most recent messages.\nCurrent summary: {summary}\nLast {num_turns} turns:{flattened_message_block}\n\nReturn only the short, updated summary.\nIf you restarted the summary due to a topic shift, begin your response with: ‘TOPIC_SHIFT: ‘",
     "query_rewrite_system_prompt": "You are a smart assistant that rewrites user input into optimised search queries for semantic retrieval in a customer support chatbot.",
@@ -46,6 +50,11 @@
       "fr": "Bonjour, je suis l’assistante d’Olivia. Vous pouvez me poser des questions comme « Comment annuler une transaction ? » ou « Comment ajouter un nouvel article au menu ? » Envoyez-moi un message texte ou vocal, comme vous préférez.",
       "it": "Ciao, sono l’assistente di Olivia. Puoi chiedermi ad esempio: “Come annullo una transazione?” oppure “Come aggiungo un nuovo articolo al menu?” Puoi scrivermi o mandarmi un messaggio vocale, come ti è più comodo."
     },
+    "gratitude_responses": {
+      "en": "You're welcome!",
+      "fr": "De rien !",
+      "it": "Prego!"
+    },
     "not_understood_responses": {
       "en": "I didn’t quite understand. Try rephrasing or ask me something else.",
       "fr": "Je n’ai pas bien compris. Reformulez ou posez-moi une autre question.",
@@ -53,7 +62,7 @@
     },
     "flagged_content_responses": {
       "en": "I’m not able to help with that request.",
-      "fr": "Je ne peux pas vous aider avec cette question..",
+      "fr": "Je ne peux pas vous aider avec cette question.",
       "it": "Non posso aiutarti con questa richiesta."
     },
     "self_harm_responses": {
@@ -75,81 +84,80 @@
 
 "greeting_triggers": {
   "en": [
-    "olivia",
     "hello",
-    "hello olivia",
     "hi",
-    "hi olivia",
     "hey",
-    "hey olivia",
     "yo",
-    "yo olivia",
     "greetings",
-    "greetings olivia",
     "whats up",
-    "whats up olivia",
     "hi there",
-    "hi there olivia",
     "hey there",
-    "hey there olivia",
     "good morning",
-    "good morning olivia",
     "good afternoon",
-    "good afternoon olivia",
     "good evening",
-    "good evening olivia",
     "hiya",
-    "hiya olivia",
     "sup",
-    "sup olivia",
-    "howdy",
-    "howdy olivia"
+    "howdy"
   ],
   "fr": [
     "bonjour",
-    "bonjour olivia",
     "salut",
-    "salut olivia",
     "coucou",
-    "coucou olivia",
     "hello",
-    "hello olivia",
     "bonsoir",
-    "bonsoir olivia",
     "bonne journée",
-    "bonne journée olivia",
     "bonne soirée",
-    "bonne soirée olivia",
     "yo",
-    "yo olivia",
     "hé",
-    "hé olivia",
-    "salutations",
-    "salutations olivia"
+    "salutations"
   ],
   "it": [
     "ciao",
-    "ciao olivia",
     "salve",
-    "salve olivia",
     "buongiorno",
-    "buongiorno olivia",
     "buonasera",
-    "buonasera olivia",
     "buonanotte",
-    "buonanotte olivia",
     "ehi",
-    "ehi olivia",
     "ciao bella",
-    "ciao bella olivia",
     "yo",
-    "yo olivia",
     "saluti",
-    "saluti olivia",
     "buona giornata",
-    "buona giornata olivia",
-    "buona sera",
-    "buona sera olivia"
+    "buona sera"
+  ]
+},
+"gratitude_triggers": {
+  "en": [
+    "thank you",
+    "thanks",
+    "thanks a lot",
+    "thank you very much",
+    "cheers",
+    "many thanks",
+    "thanks so much",
+    "thank u",
+    "thx",
+    "ty",
+    "much appreciated",
+    "appreciate it"
+  ],
+  "fr": [
+    "merci",
+    "merci beaucoup",
+    "merci bien",
+    "un grand merci",
+    "merci infiniment",
+    "merci énormément",
+    "mille mercis"
+  ],
+  "it": [
+    "grazie",
+    "grazie mille",
+    "grazie tante",
+    "molte grazie",
+    "grazie di cuore",
+    "ti ringrazio",
+    "vi ringrazio",
+    "grazie infinite"
   ]
 },
 

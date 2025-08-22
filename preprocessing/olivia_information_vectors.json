@@ -12,11 +12,7 @@
     "embedding_model": "text-embedding-3-large",
     "transcription_model": "gpt-4o-transcribe",
     "moderation_model": "omni-moderation-latest",
-    "moderation_self_harm_categories": [
-      "self-harm",
-      "self-harm/intent",
-      "self-harm/instructions"
-    ],
+    "moderation_self_harm_categories": ["self-harm", "self-harm/intent", "self-harm/instructions"],
     "summary_query_model": "gpt-4.1-mini"
   },
   "prompts": {
@@ -28,31 +24,36 @@
       "Wine pairings for specific dishes"
     ],
     "banned_topics": [
-      "Third-party product comparisons",
-      "Legal, financial, or medical advice",
+      "Legal, financial, medical or mental health advice",
+      "Religion",
+      "Politics",
+      "Investment or trading advice",
+      "News commentary or current events",
+      "Philosophy and ethics",
       "Personal opinions or speculative responses",
       "Technical support for unrelated products",
-      "Politics"
-    ],   
+      "Third-party product comparisons"
+    ],    
     "summary_rewrite_user_template": "You are updating a short summary of a customer support conversation.\nIf the user’s most recent message is clearly about a different topic than the summary, clear the previous summary and start from scratch.\n\nEnsure that you capture:\n- Main device/product/service\n- Main problem or request\n- Key details already provided\n- Actions already tried\n\nUpdate the summary by incorporating any new, relevant information from the latest messages. If no prior summary exists, generate a concise summary based solely on the most recent messages.\nCurrent summary: {summary}\nLast {num_turns} turns:{flattened_message_block}\n\nReturn only the short, updated summary.\nIf you restarted the summary due to a topic shift, begin your response with: ‘TOPIC_SHIFT: ‘",
     "query_rewrite_system_prompt": "You are a smart assistant that rewrites user input into optimised search queries for semantic retrieval in a customer support chatbot.",
     "query_rewrite_user_template": "Conversation summary: {summary}\nAssistant asked: {assistant_msg}\nUser replied: {user_msg}\nRewrite the user's reply as a standalone query optimised for semantic search. Incorporate relevant context and technical details from the summary and assistant's question. Output only the final query."
   },
-  "supported_languages": [
-    "en",
-    "it",
-    "fr"
-  ],
+  "supported_languages": ["en", "it", "fr"],
   "phone_to_language": {
     "44": "en",
     "33": "fr",
     "39": "it"
   },
-  "preset_responses": {
+  "preset_responses": { 
     "greeting_responses": {
       "en": "Hi, I’m Olivia’s assistant. You can ask me things like “How do I void a transaction?” or “How do I add a new item to the menu?” You can type a message or send a voice note, whichever’s easier for you.",
       "fr": "Bonjour, je suis l’assistante d’Olivia. Vous pouvez me poser des questions comme « Comment annuler une transaction ? » ou « Comment ajouter un nouvel article au menu ? » Envoyez-moi un message texte ou vocal, comme vous préférez.",
       "it": "Ciao, sono l’assistente di Olivia. Puoi chiedermi ad esempio: “Come annullo una transazione?” oppure “Come aggiungo un nuovo articolo al menu?” Puoi scrivermi o mandarmi un messaggio vocale, come ti è più comodo."
+    },
+    "gratitude_responses": {
+      "en": "You're welcome!",
+      "fr": "De rien !",
+      "it": "Prego!"
     },
     "not_understood_responses": {
       "en": "I didn’t quite understand. Try rephrasing or ask me something else.",
@@ -74,91 +75,92 @@
       "fr": "Je ne peux pas traiter ce type de contenu. Je ne prends en charge que l’audio ou le texte.",
       "it": "Non posso elaborare questo tipo di contenuto. Sono in grado di gestire solo audio o testo."
     },
-    "hard_escalate_responses": {
+      "hard_escalate_responses": {
       "en": "I’ve received your request to speak with a human. Someone will contact you on this number within the next 15 minutes. If we can’t reach you, we’ll try again later.",
       "fr": "J’ai bien reçu ta demande pour parler à un agent. Quelqu’un te contactera sur ce numéro dans les 15 prochaines minutes. Si nous n’arrivons pas à te joindre, nous réessaierons plus tard.",
       "it": "Ho ricevuto la tua richiesta di parlare con una operatore. Verrai contattato su questo numero entro 15 minuti. Se non riusciamo a raggiungerti, riproveremo più tardi."
     }
   },
-  "greeting_triggers": {
-    "en": [
-      "olivia",
-      "hello",
-      "hello olivia",
-      "hi",
-      "hi olivia",
-      "hey",
-      "hey olivia",
-      "yo",
-      "yo olivia",
-      "greetings",
-      "greetings olivia",
-      "whats up",
-      "whats up olivia",
-      "hi there",
-      "hi there olivia",
-      "hey there",
-      "hey there olivia",
-      "good morning",
-      "good morning olivia",
-      "good afternoon",
-      "good afternoon olivia",
-      "good evening",
-      "good evening olivia",
-      "hiya",
-      "hiya olivia",
-      "sup",
-      "sup olivia",
-      "howdy",
-      "howdy olivia"
-    ],
-    "fr": [
-      "bonjour",
-      "bonjour olivia",
-      "salut",
-      "salut olivia",
-      "coucou",
-      "coucou olivia",
-      "hello",
-      "hello olivia",
-      "bonsoir",
-      "bonsoir olivia",
-      "bonne journée",
-      "bonne journée olivia",
-      "bonne soirée",
-      "bonne soirée olivia",
-      "yo",
-      "yo olivia",
-      "hé",
-      "hé olivia",
-      "salutations",
-      "salutations olivia"
-    ],
-    "it": [
-      "ciao",
-      "ciao olivia",
-      "salve",
-      "salve olivia",
-      "buongiorno",
-      "buongiorno olivia",
-      "buonasera",
-      "buonasera olivia",
-      "buonanotte",
-      "buonanotte olivia",
-      "ehi",
-      "ehi olivia",
-      "ciao bella",
-      "ciao bella olivia",
-      "yo",
-      "yo olivia",
-      "saluti",
-      "saluti olivia",
-      "buona giornata",
-      "buona giornata olivia",
-      "buona sera",
-      "buona sera olivia"
-    ]
-  },
+
+"greeting_triggers": {
+  "en": [
+    "hello",
+    "hi",
+    "hey",
+    "yo",
+    "greetings",
+    "whats up",
+    "hi there",
+    "hey there",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "hiya",
+    "sup",
+    "howdy"
+  ],
+  "fr": [
+    "bonjour",
+    "salut",
+    "coucou",
+    "hello",
+    "bonsoir",
+    "bonne journée",
+    "bonne soirée",
+    "yo",
+    "hé",
+    "salutations"
+  ],
+  "it": [
+    "ciao",
+    "salve",
+    "buongiorno",
+    "buonasera",
+    "buonanotte",
+    "ehi",
+    "ciao bella",
+    "yo",
+    "saluti",
+    "buona giornata",
+    "buona sera"
+  ]
+},
+
+"gratitude_triggers": {
+  "en": [
+    "thank you",
+    "thanks",
+    "thanks a lot",
+    "thank you very much",
+    "many thanks",
+    "thanks so much",
+    "thank u",
+    "thx",
+    "ty",
+    "much appreciated",
+    "appreciate it",
+    "cheers"
+  ],
+  "fr": [
+    "merci",
+    "merci beaucoup",
+    "merci bien",
+    "un grand merci",
+    "merci infiniment",
+    "merci énormément",
+    "mille mercis"
+  ],
+  "it": [
+    "grazie",
+    "grazie mille",
+    "grazie tante",
+    "molte grazie",
+    "grazie di cuore",
+    "ti ringrazio",
+    "vi ringrazio",
+    "grazie infinite"
+  ]
+},
   "human_escalation": [
     {
       "lang": "en",
